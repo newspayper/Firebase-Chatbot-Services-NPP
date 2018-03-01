@@ -1,0 +1,9 @@
+
+firebase.json
+.firebaserc
+functions/.eslintrc.json
+$RESOURCE_DIR
+functions/node_modules
+functions/etc
+functions/package.json
+functions/package-lock.json
