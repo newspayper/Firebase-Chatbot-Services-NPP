@@ -10,22 +10,14 @@ admin.initializeApp(functions.config().firebase);
 // // https://firebase.google.com/docs/functions/write-firebase-functions
 
 
-exports.helloWorld = functions.https.onRequest((request, response) => {
- response.json({ "messages": [ { "text": "Hello from Firebase!" } ] });
-});
-
-
 exports.montrerUne = functions.https.onRequest((request, response) => {
 
 	//const publications = admin.database().ref('/publications');
 
 	const uneId = request.query["uneId"];
 
-	console.log("uneId = " + uneIndex);
-
 	var uneIndex = parseInt(uneId, 10);
 
-	console.log("uneIndex = " + uneIndex);
 
 	if( !verifyParam(uneIndex) ) {
 		badRequest(response, "Unable to find request parameter 'uneIndex'.");
@@ -34,66 +26,36 @@ exports.montrerUne = functions.https.onRequest((request, response) => {
 
 
 	if( isNaN(uneIndex) ) {
-		console.log("uneIndex isNaN");
 		uneIndex = 0;
 	} 
 	else {
-		console.log("uneIndex isaN");
 		uneIndex++;
 	}
 
-	console.log("uneIndex = " + uneIndex);
 
-	if(uneIndex >= 0 && uneIndex < 3) {
+	const nbUnes = Object.keys(publicationsJSON.publications).length;
+	const termine = uneIndex === nbUnes - 1;
 
+	if(uneIndex >= 0) {
 
-	response.json({
+		if(uneIndex < nbUnes) {
 
- "messages": [
-    {
-      "attachment":{
-        "type":"template",
-        "payload":{
-          "template_type":"generic",
-          //"image_aspect_ratio": "square",
-          "default_action":[
-                {
-                  "type":"web_url",
-                  "url": publicationsJSON.publications[uneIndex].url_une,
-                }],
-          "elements":[
-            {
-              "title": publicationsJSON.publications[uneIndex].nom,
-              "image_url": publicationsJSON.publications[uneIndex].url_une,
-              "subtitle":"Size: M",
-              "buttons":[
-                {
-                  "type":"web_url",
-                  "url": publicationsJSON.publications[uneIndex].url_une,
-                  "title":"Voir la une"
-                }
-              ]
-            },
-            {
-              "title": publicationsJSON.publications[uneIndex + 1].nom,
-              "image_url": publicationsJSON.publications[uneIndex + 1].url_une,
-              "subtitle":"Size: L",
-              "buttons":[
-                {
-                  "type":"web_url",
-                  "url":publicationsJSON.publications[uneIndex + 1].url_une,
-                  "title":"Voir la une"
-                }
-              ]
-            }
-          ]
-        }
-      }
-    }
-  ]
-
-
-	});
+			response.json({
+				"set_attributes": {
+					"uneId": uneIndex,
+					"termine": termine
+				},
+				"messages": [{
+						"attachment": {
+							"type": "image",
+							"payload": {
+								"url": publicationsJSON.publications[uneIndex].url_une
+							}
+						}
+					}
+				]
+			});
+		}
 
 	}
 
