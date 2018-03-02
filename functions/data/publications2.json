@@ -1,0 +1,24 @@
+{
+  "publications": {
+    "0": {
+      "nom": "Le Canard Enchaîné",
+      "url_une": "https://www.lecanardenchaine.fr/wp-content/uploads/2018/02/zjklhdfelh234554FE.png",
+      "date" : "2018-02-28"
+    },
+    "1": {
+      "nom": "ebdo",
+      "url_une": "https://s3.eu-west-3.amazonaws.com/ebdo/front/home/thumbmail/current/0.jpg",
+      "date" : "2018-03-02"
+    },
+    "2": {
+      "nom": "Society",
+      "url_une": "https://www.society-magazine.fr/wp-content/uploads/2018/02/couv-society-75-600x775.jpg",
+      "date" : "2018-02-22"
+    },
+  "3": {
+      "nom": "Le Un",
+      "url_une": "https://le1hebdo.fr/1102/numero-191.jpg",
+      "date" : "2018-02-28"
+    }
+  }
+}
