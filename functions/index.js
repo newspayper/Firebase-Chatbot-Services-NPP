@@ -2,7 +2,7 @@ const functions = require('firebase-functions');
 
 const admin = require('firebase-admin');
 
-const publicationsJSON = require('./data/publications');
+const publicationsJSON = require('./data/publications2');
 
 admin.initializeApp(functions.config().firebase);
 
@@ -47,7 +47,7 @@ exports.montrerUne = functions.https.onRequest((request, response) => {
 				},
 				"messages": [
 					{
-						"text": publicationsJSON.publications[uneIndex].nom
+						"text": publicationsJSON.publications[uneIndex].nom + '(' + publicationsJSON.publications[uneIndex].date + ')'
 					},
 						{
 							"attachment": {
