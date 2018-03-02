@@ -47,7 +47,7 @@ exports.montrerUne = functions.https.onRequest((request, response) => {
 				},
 				"messages": [
 					{
-						"text": publicationsJSON.publications[uneIndex].nom + '(' + publicationsJSON.publications[uneIndex].date + ')'
+						"text": publicationsJSON.publications[uneIndex].nom + ' (' + publicationsJSON.publications[uneIndex].date + ')'
 					},
 						{
 							"attachment": {
