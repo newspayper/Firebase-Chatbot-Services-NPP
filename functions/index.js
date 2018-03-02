@@ -45,8 +45,12 @@ exports.montrerUne = functions.https.onRequest((request, response) => {
 					"uneId": uneIndex,
 					"termine": termine
 				},
-				"messages": [{
-						"attachment": {
+				"messages": [
+					{
+						"text": publicationsJSON.publications[uneIndex].nom
+					},
+						{
+							"attachment": {
 							"type": "image",
 							"payload": {
 								"url": publicationsJSON.publications[uneIndex].url_une
