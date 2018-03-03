@@ -1,8 +1,16 @@
+/*
+* 03/03/18
+* V0.1
+* Les infos desvpublications proviennent désormais de la BDD et plus du fichier JSON
+* 
+* 01/03/18
+* V0
+* Première version
+*/
+
 const functions = require('firebase-functions');
 
 const admin = require('firebase-admin');
-
-const publicationsJSON = require('./data/publications2');
 
 admin.initializeApp(functions.config().firebase);
 
@@ -10,79 +18,74 @@ admin.initializeApp(functions.config().firebase);
 // // https://firebase.google.com/docs/functions/write-firebase-functions
 
 
+
 exports.montrerUne = functions.https.onRequest((request, response) => {
 
-	//const BDD_chatbot = admin.database().ref('/publications');
 
-	const uneId = request.query["uneId"];
+	const BDD_chatbot = admin.database().ref();
 
-	var uneIndex = parseInt(uneId, 10);
+	var toto = BDD_chatbot.once('value')
+		.then(function(snapshot) {
 
-/*
-  	BDD_chatbot.once('1').then(function(pubs) {
+			var donnees = snapshot.val();
 
-  		//console.log("db : " + JSON.stringify(pubs));
-
-  	});
-*/
+			console.log("Données = " + JSON.stringify(donnees));
 
 
-	if( !verifyParam(uneIndex) ) {
-		badRequest(response, "Unable to find request parameter 'uneIndex'.");
-		return;
-  	}
+			const uneId = request.query["uneId"];
+
+			var uneIndex = parseInt(uneId, 10);
+
+			if( !verifyParam(uneIndex) ) {
+				badRequest(response, "Unable to find request parameter 'uneIndex'.");
+				return;
+			}
 
 
-	if( isNaN(uneIndex) ) {
-		uneIndex = 0;
-	} 
-	else {
-		uneIndex++;
-	}
+			if( isNaN(uneIndex) ) {
+				uneIndex = 0;
+			} 
+			else {
+				uneIndex++;
+			}
 
 
-	const nbUnes = Object.keys(publicationsJSON.publications).length;
-	const termine = uneIndex === nbUnes - 1;
+			const nbUnes = Object.keys(donnees['publications']).length;
+			const termine = uneIndex === nbUnes - 1;
 
-	if(uneIndex >= 0) {
+			if(uneIndex >= 0) {
 
-		if(uneIndex < nbUnes) {
+				if(uneIndex < nbUnes) {
 
-			response.json({
-				"set_attributes": {
-					"uneId": uneIndex,
-					"termine": termine
-				},
-				"messages": [
-					{
-						"text": publicationsJSON.publications[uneIndex].nom + ' (' + publicationsJSON.publications[uneIndex].date + ')'
-					},
-						{
-							"attachment": {
-							"type": "image",
-							"payload": {
-								"url": publicationsJSON.publications[uneIndex].url_une
+					response.json({
+						"set_attributes": {
+							"uneId": uneIndex,
+							"termine": termine
+						},
+						"messages": [
+							{
+								"text": donnees['publications'][uneIndex]['nom'] + ' (' + donnees['publications'][uneIndex]['date'] + ')'
+							},
+								{
+									"attachment": {
+									"type": "image",
+									"payload": {
+										"url": donnees['publications'][uneIndex]['url_une']
+									}
+								}
 							}
-						}
-					}
-				]
-			});
-		}
+						]
+					});
+				}
 
-	}
+			}
 
-	response.end();
+			response.end();
 
-  	/*const une_db = publications.child(parseInt(uneIndex, 10));
+		});
 
-  	une_db.once('nom').then(function(nom_une){
 
-  		response.json({ "messages": [ { "text": nom_une } ] });
-
-  	});
-	*/
-
-});
+	});
 
 
 /*
