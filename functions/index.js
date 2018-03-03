@@ -12,11 +12,19 @@ admin.initializeApp(functions.config().firebase);
 
 exports.montrerUne = functions.https.onRequest((request, response) => {
 
-	//const publications = admin.database().ref('/publications');
+	//const BDD_chatbot = admin.database().ref('/publications');
 
 	const uneId = request.query["uneId"];
 
 	var uneIndex = parseInt(uneId, 10);
+
+/*
+  	BDD_chatbot.once('1').then(function(pubs) {
+
+  		//console.log("db : " + JSON.stringify(pubs));
+
+  	});
+*/
 
 
 	if( !verifyParam(uneIndex) ) {
