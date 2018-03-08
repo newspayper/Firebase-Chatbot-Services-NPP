@@ -1,12 +1,4 @@
-/*
-* 03/03/18
-* V0.1
-* Les infos desvpublications proviennent désormais de la BDD et plus du fichier JSON
-* 
-* 01/03/18
-* V0
-* Première version
-*/
+
 
 const functions = require('firebase-functions');
 
@@ -14,9 +6,17 @@ const admin = require('firebase-admin');
 
 admin.initializeApp(functions.config().firebase);
 
-// // Create and Deploy Your First Cloud Functions
-// // https://firebase.google.com/docs/functions/write-firebase-functions
 
+exports.enregistrerAvis = functions.https.onRequest((request, response) => {
+
+
+	const BDD_chatbot = admin.database().ref();
+
+
+
+	response.end();
+
+});
 
 
 exports.montrerUne = functions.https.onRequest((request, response) => {
@@ -24,12 +24,12 @@ exports.montrerUne = functions.https.onRequest((request, response) => {
 
 	const BDD_chatbot = admin.database().ref();
 
-	var toto = BDD_chatbot.once('value')
+	var lecture = BDD_chatbot.child('publications').once('value')
 		.then(function(snapshot) {
 
-			var donnees = snapshot.val();
+			var publications = snapshot.val();
 
-			console.log("Données = " + JSON.stringify(donnees));
+			console.log("Publications = " + JSON.stringify(publications));
 
 
 			const uneId = request.query["uneId"];
@@ -50,7 +50,7 @@ exports.montrerUne = functions.https.onRequest((request, response) => {
 			}
 
 
-			const nbUnes = Object.keys(donnees['publications']).length;
+			const nbUnes = publications.length;
 			const termine = uneIndex === nbUnes - 1;
 
 			if(uneIndex >= 0) {
@@ -64,13 +64,13 @@ exports.montrerUne = functions.https.onRequest((request, response) => {
 						},
 						"messages": [
 							{
-								"text": donnees['publications'][uneIndex]['nom'] + ' (' + donnees['publications'][uneIndex]['date'] + ')'
+								"text": publications[uneIndex]['nom'] + ' (' + publications[uneIndex]['date'] + ')'
 							},
 								{
 									"attachment": {
 									"type": "image",
 									"payload": {
-										"url": donnees['publications'][uneIndex]['url_une']
+										"url": publications[uneIndex]['url_une']
 									}
 								}
 							}

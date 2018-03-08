@@ -1,0 +1,14 @@
+/*
+*
+* 08/03/18
+* V0.2
+* La requête en BDD vers les publications a été reprise
+*
+* 03/03/18
+* V0.1
+* Les infos des publications proviennent désormais de la BDD et plus du fichier JSON
+* 
+* 01/03/18
+* V0
+* Première version
+*/
