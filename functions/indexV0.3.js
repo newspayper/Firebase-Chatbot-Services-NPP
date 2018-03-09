@@ -6,100 +6,19 @@ const admin = require('firebase-admin');
 
 admin.initializeApp(functions.config().firebase);
 
+exports.enregistrerAvis = functions.https.onRequest((request, response) => {
 
+/*
 const notes = {
 	"10084" : 2,	//emoji coeur
 	"128077" : 1,	//emoji pouce vers le haut
 	"85" : 0,		// le "U" de "Une autre"
-	"80" : 0,		// le "P" de "Pas d'avis"
 	"128078" : -1,	//emoji pouce vers le bas
 	"128169" : -2,	//emoji caca
-}
-
-exports.enregistrerAvisChatbot = functions.https.onRequest((request, response) => {
-
-	console.log("chatbotNPP enregistrerAvisChatbot : " + JSON.stringify(request.body) );
-
-	const chatfuelUserId	= request.body["chatfuel user id"];
-
-	const messengerUserId	= request.body["messenger user id"];
-
-	const firstName			= request.body["first name"];
-
-	const lastName			= request.body["last name"];
-
-	const feedbackAvis 		= request.body["feedback: avisGeneral"];
-
-	const feedbackComment	= request.body["feedback: commentaire"];
-
-	const feedbackMail 		= request.body["feedback: userEmail"];
-
-	const feedbackFan 		= request.body["feedback: fan"];
+}*/
 
 
-	if( !verifyParam(chatfuelUserId) ) {
-				badRequest(response, "Unable to find request parameter 'chatfuelUserId'.");
-				return;
-	}
-	
-	if( !verifyParam(firstName) ) {
-				badRequest(response, "Unable to find request parameter 'firstName'.");
-				return;
-	}
-	if( !verifyParam(lastName) ) {
-				badRequest(response, "Unable to find request parameter 'lastName'.");
-				return;
-	}
-
-
-	var infosUser = {};
-
-	infosUser["nom"] = firstName + " " + lastName;
-	infosUser["messengerUserId"] = messengerUserId;
-
-	var reponse = {};
-
-	if(feedbackAvis) {
-		reponse["note"] = notes[feedbackAvis.codePointAt(0)];
-	}
-
-	if(feedbackComment) {
-		reponse["commentaire"] = feedbackComment;
-	}
-
-	if(feedbackMail) {
-		reponse["mail"] = feedbackMail;
-	}
-
-	if(feedbackFan) {
-		reponse["fan"] = feedbackFan;
-	}
-
-	var d = new Date();
-
-	var refUser = admin.database().ref('users').child(chatfuelUserId);
-
-	var updates = {};
-	updates["nom"] = firstName + " " + lastName;
-	updates["messengerUserId"] = messengerUserId;	
-	updates["/avisChatbot/" + d.getFullYear().toString() + "_" + (d.getMonth() + 1).toString() + d.getDate().toString()] = reponse;
-
-
-	refUser.update(updates)
-		.then(function() {
-			response.end();
-		});
-
-
-	response.end();
-
-});
-
-
-
-exports.enregistrerAvisPublication = functions.https.onRequest((request, response) => {
-
-	console.log("chatbotNPP enregistrerAvisPublication : " + JSON.stringify(request.body) );
+	console.log("chatbotNPP enregistrerAvis : " + JSON.stringify(request.body) );
 
 	const chatfuelUserId	= request.body["chatfuel user id"];
 
@@ -144,19 +63,24 @@ exports.enregistrerAvisPublication = functions.https.onRequest((request, respons
 	infosUser["nom"] = firstName + " " + lastName;
 	infosUser["messengerUserId"] = messengerUserId;
 
+	//console.log('emoji en string : ' + userAnswer.codePointAt(0));
+
 	var reponse = {};
 
-	reponse["note"] = notes[userAnswer.codePointAt(0)];
+	reponse["note"] = 0;//note[userAnswer.codePointAt(0)];
 	reponse["titre"] = uneId;
 
+	console.log(reponse["note"]);
+
+
 	var refUser = admin.database().ref('users').child(chatfuelUserId);
-	var newAvisKey = refUser.child('avisPublications').push().key;
+	var newAvisKey = refUser.child('avis').push().key;
 
 
 	var updates = {};
 	updates["nom"] = firstName + " " + lastName;
 	updates["messengerUserId"] = messengerUserId;	
-	updates["/avisPublications/" + newAvisKey] = reponse;
+	updates["/avis/" + newAvisKey] = reponse;
 
 
 	refUser.update(updates)
@@ -172,7 +96,7 @@ exports.enregistrerAvisPublication = functions.https.onRequest((request, respons
 
 exports.montrerUne = functions.https.onRequest((request, response) => {
 
-	console.log("chatbotNPP montrerUne : " + JSON.stringify(request.query) );
+	console.log("chatbotNPP montrerUne : " + JSON.stringify(request.body) );
 
 	const BDD_chatbot = admin.database().ref();
 
