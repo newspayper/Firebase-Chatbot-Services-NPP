@@ -9,9 +9,72 @@ admin.initializeApp(functions.config().firebase);
 
 exports.enregistrerAvis = functions.https.onRequest((request, response) => {
 
+	console.log("chatbotNPP enregistrerAvis : " + JSON.stringify(request.body) );
 
-	const BDD_chatbot = admin.database().ref();
+	const chatfuelUserId	= request.body["chatfuel user id"];
 
+	const messengerUserId	= request.body["messenger user id"];
+
+	const firstName			= request.body["first name"];
+
+	const lastName			= request.body["last name"];
+
+	const userAnswer 		= request.body["userAnswer"];
+
+	const uneId 			= request.body["uneId"];
+
+	if( !verifyParam(chatfuelUserId) ) {
+				badRequest(response, "Unable to find request parameter 'chatfuelUserId'.");
+				return;
+	}
+	if( !verifyParam(messengerUserId) ) {
+				badRequest(response, "Unable to find request parameter 'messengerUserId'.");
+				return;
+	}
+	if( !verifyParam(firstName) ) {
+				badRequest(response, "Unable to find request parameter 'firstName'.");
+				return;
+	}
+	if( !verifyParam(lastName) ) {
+				badRequest(response, "Unable to find request parameter 'lastName'.");
+				return;
+	}
+	if( !verifyParam(userAnswer) ) {
+				badRequest(response, "Unable to find request parameter 'userAnswer'.");
+				return;
+	}
+	if( !verifyParam(uneId) ) {
+				badRequest(response, "Unable to find request parameter 'uneId'.");
+				return;
+	}
+
+
+	var infosUser = {};
+
+	infosUser["nom"] = firstName + " " + lastName;
+	infosUser["messengerUserId"] = messengerUserId;
+
+
+	var reponse = {};
+
+	reponse["note"] = userAnswer;
+	reponse["titre"] = uneId;
+
+
+	var refUser = admin.database().ref('users').child(chatfuelUserId);
+	var newAvisKey = refUser.child('avis').push().key;
+
+
+	var updates = {};
+	updates["nom"] = firstName + " " + lastName;
+	updates["messengerUserId"] = messengerUserId;	
+	updates["/avis/" + newAvisKey] = reponse;
+
+
+	refUser.update(updates)
+		.then(function() {
+			response.end();
+		});
 
 
 	response.end();
@@ -21,6 +84,7 @@ exports.enregistrerAvis = functions.https.onRequest((request, response) => {
 
 exports.montrerUne = functions.https.onRequest((request, response) => {
 
+	console.log("chatbotNPP montrerUne : " + JSON.stringify(request.body) );
 
 	const BDD_chatbot = admin.database().ref();
 
@@ -28,9 +92,6 @@ exports.montrerUne = functions.https.onRequest((request, response) => {
 		.then(function(snapshot) {
 
 			var publications = snapshot.val();
-
-			console.log("Publications = " + JSON.stringify(publications));
-
 
 			const uneId = request.query["uneId"];
 

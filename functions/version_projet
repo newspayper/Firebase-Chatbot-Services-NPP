@@ -1,5 +1,9 @@
 /*
 *
+* 09/03/18
+* V0.3
+* Enregistrement en BDD des avis utilisateurs sur les publications
+*
 * 08/03/18
 * V0.2
 * La requête en BDD vers les publications a été reprise
