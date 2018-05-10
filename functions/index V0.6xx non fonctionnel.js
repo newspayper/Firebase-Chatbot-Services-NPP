@@ -5,7 +5,6 @@ const admin = require('firebase-admin');
 
 admin.initializeApp(functions.config().firebase);
 
-const nbAAfficher = 5;
 
 const notes = {
 	"10084" : 2,	//emoji coeur
@@ -29,26 +28,34 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 
 			var publications_desordre = snapshot.val();
 
-			//console.log("pub desordre = " + JSON.stringify(publications_desordre));
+			console.log(JSON.stringify(publications_desordre));
 
-			var i = 0;
+			var publications = {};
+
+			publications = sortObject(publications_desordre);
+
+
+			var sorted = Object.keys(publications_desordre)
+				.sort(function(a, b) {
+				    return publications_desordre[b].date_parution - publications_desordre[a].date_parution; // Organize the category array
+				  })
+				  .map(function(category) {
+				    return publications_desordre[category]; // Convert array of categories to array of objects
+				  });
+
+			console.log("test sorted : " + JSON.stringify(sorted));
+
+/*
+	var lecture = BDD_chatbot.child('publications').orderByChild('date_parution').once('value')
+		.then(function(snapshot) {
+
 			snapshot.forEach(function(childSnapshot) {
-				//console.log("childSnapshot : " + JSON.stringify(childSnapshot.key));
-				publications_desordre[childSnapshot.key].id = childSnapshot.key;
-				i++;
+				console.log("childSnapshot : " + JSON.stringify(childSnapshot.val()));
 			});
 
-			//console.log(JSON.stringify(publications_desordre));
+			var publications = snapshot.val();
 
-			var publications = Object.keys(publications_desordre)
-				.sort(function(a, b) {
-						return publications_desordre[b].date_parution - publications_desordre[a].date_parution; // Organize the category array
-					})
-					.map(function(category) {
-						return publications_desordre[category]; // Convert array of categories to array of objects
-					});
-
-			//console.log("publications sorted : " + JSON.stringify(publications));
+			var indexes = Object.keys(publications);
 
 			const indexPublicationParam = request.query["indexPublication"];
 
@@ -63,7 +70,8 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 				indexPublication = 0;
 			}
 
-			const nbPublications = publications.length;
+			const nbPublications = indexes.length;
+			const nbAAfficher = 3;
 
 			var limiteAffichage, termine;
 
@@ -81,29 +89,13 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 			var texteResume = '';
 
 			//Insertion des quick replies standard
-			quickReplies.push({"title": "Menu","block_names": ["Menu"]});
-
-			var retourArriere = limiteAffichage - nbAAfficher * 2;
-
-			if(retourArriere >= 0)
-			{
-				quickReplies.push(
-					{
-						"title": "\u2b06",
-						"block_names": ["Montre Publications"],
-						"set_attributes":
-						{
-							"indexPublication": retourArriere
-						}
-					}
-				);
-			}
+			quickReplies.push({"title": "Stop","block_names": ["Menu"]});
 
 			if(!termine)
 			{
 				quickReplies.push(
 					{
-						"title": "\u2b07",
+						"title": "La suite",
 						"block_names": ["Montre Publications"],
 						"set_attributes":
 						{
@@ -130,22 +122,53 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 			if(termine && (indexPublication >= nbPublications))
 				texteResume = "Désolé, je n'ai plus de publications en réserve pour le moment !"
 
+			var i = 0;
+
+			snapshot.forEach(function(childSnapshot) {
+				
+				var val = childSnapshot.val();
+				var key = childSnapshot.key;
+
+				if(i >= indexPublication && i < limiteAffichage)
+				{
+
+					texteResume += val['titre'] + ' - ' + val['tags'] + '\u000A'
+
+					quickReplies.push(
+						{
+							"title": val['titre_short'],
+							"block_names": ["Montre Details"],
+							"set_attributes":
+							{
+								"publication": key,
+							}
+						}
+					);
+
+				}
+
+				i++;
+			});
+*/
+/*
 			for (var i = indexPublication; i < limiteAffichage; i++) {
 
-				texteResume += publications[i]['titre'] + ' - ' + publications[i]['tags'] + '\u000A'
+				texteResume += publications[indexes[i]]['titre'] + ' - ' + publications[indexes[i]]['tags'] + '\u000A'
 
 				quickReplies.push(
 					{
-						"title": publications[i]['titre_short'],
+						"title": publications[indexes[i]]['titre_short'],
 						"block_names": ["Montre Details"],
 						"set_attributes":
 						{
-							"publication": publications[i].id,
+							"publication": indexes[i],
 						}
 					}
 				);
 			}
+*/
 
+/*
 			var reponseJSON = {};
 
 			reponseJSON.set_attributes = 
@@ -164,10 +187,51 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 			console.log(JSON.stringify(reponseJSON));
 
 			response.json(reponseJSON);
+*/
+
+response.end();
 
 		});
 		
 });
+
+
+function sortObject(o) {
+    var sorted = {},
+    key, a = [];
+
+    for (key in o) {
+        if (o.hasOwnProperty(key)) {
+        	var innerObj = {};
+            innerObj[key] = o[key];
+            a.push(innerObj);
+            //a.push(o[key]);
+        }
+    }
+
+    console.log("unsorted : " + JSON.stringify(a));
+
+    a.sort(function(x,y){
+
+    	console.log("sorting : x = " + JSON.stringify(x) + "    y = " + JSON.stringify(y));
+		var compareArgumentA = Date.parse(x["date_publication"]);
+		var compareArgumentB = Date.parse(y["date_publication"]);
+
+		var result = 0;// initialize return value and then do the comparison : 3 cases
+		if(compareArgumentA == compareArgumentB ){return result }; // if equal return 0
+		if(compareArgumentA < compareArgumentB ){result = 1 ; return result }; // if A<B return 1
+		if(compareArgumentA > compareArgumentB ){result = -1 ; return result }; // if A>B return -1
+    });
+
+    console.log("sorted : " + JSON.stringify(a));
+
+    for (key = 0; key < a.length; key++) {
+        sorted[a[key]] = o[a[key]];
+    }
+
+    console.log("objet sorted : " + JSON.stringify(sorted))
+    return sorted;
+}
 
 exports.showCouverture = functions.https.onRequest((request, response) => {
 
@@ -212,7 +276,7 @@ exports.showCouverture = functions.https.onRequest((request, response) => {
 			]
 		};
 
-		console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+		console.log("Réponse JSON : " + reponseJSON);
 
 		response.json(reponseJSON);
 
@@ -229,6 +293,7 @@ exports.showSommaire = functions.https.onRequest((request, response) => {
 
 	const listePublications = BDD_chatbot.ref("publications");
 
+
 	const idPublication = request.query["publication"];
 
 	if( !verifyParam(idPublication) ) {
@@ -243,7 +308,7 @@ exports.showSommaire = functions.https.onRequest((request, response) => {
 
 		var texteSommaire = publication.sommaire;
 
-		if(texteSommaire == undefined || texteSommaire == "" || texteSommaire.length > 2000)
+		if(texteSommaire == undefined)
 		{
 			console.log("Pas de sommaire à afficher");
 			response.end();
@@ -262,7 +327,7 @@ exports.showSommaire = functions.https.onRequest((request, response) => {
 				]
 			};
 
-			console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+			console.log("Réponse JSON : " + reponseJSON);
 
 			response.json(reponseJSON);
 		}
@@ -472,6 +537,7 @@ function badRequest(response, message) {
 
 }
 
+
 exports.showTest = functions.https.onRequest((request, response) => {
 
 
@@ -556,22 +622,19 @@ exports.showTest = functions.https.onRequest((request, response) => {
 
 	var JSONtest = 
 	{
-  "messages": [
-    {
-      "attachment": {
-        "type": "image",
-        "payload": {
-          "url": "http://www.journaux.fr/images/revues/M4858_cache_s182018.jpg"
-        }
-      },
-      "quick_replies": [
-        {
-          "title": "OK"
-        }
-      ]
-    }
-  ]
-};
+		"messages": [
+			{
+				"attachment":
+				{
+					"type": "image",
+					"payload": 
+					{
+						"url": "https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png"
+					}
+        		}
+			}
+		]
+	};
 
 	response.json(JSONtest);
 
