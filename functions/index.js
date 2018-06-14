@@ -34,7 +34,18 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 			var i = 0;
 			snapshot.forEach(function(childSnapshot) {
 				//console.log("childSnapshot : " + JSON.stringify(childSnapshot.key));
-				publications_desordre[childSnapshot.key].id = childSnapshot.key;
+
+				var date_parution = publications_desordre[childSnapshot.key].date_parution;
+				var now = new Date();
+
+				//Si déjà parue on s'en occupe
+				if(date_parution < now.getTime()) {
+					publications_desordre[childSnapshot.key].id = childSnapshot.key;
+				}
+				else { //Sinon on la retire des publications à afficher
+					delete publications_desordre[childSnapshot.key];
+				}
+
 				i++;
 			});
 
@@ -48,7 +59,7 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 						return publications_desordre[category]; // Convert array of categories to array of objects
 					});
 
-			//console.log("publications sorted : " + JSON.stringify(publications));
+			console.log("publications sorted : " + JSON.stringify(publications));
 
 			const indexPublicationParam = request.query["indexPublication"];
 
@@ -89,7 +100,7 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 			{
 				quickReplies.push(
 					{
-						"title": "\u2b06",
+						"title": " \ud83d\udd3c",
 						"block_names": ["Montre Publications"],
 						"set_attributes":
 						{
@@ -103,7 +114,7 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 			{
 				quickReplies.push(
 					{
-						"title": "\u2b07",
+						"title": " \ud83d\udd3d",
 						"block_names": ["Montre Publications"],
 						"set_attributes":
 						{
@@ -128,11 +139,11 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 
 			//Message de fin si jamais il n'y a plus de publication à afficher
 			if(termine && (indexPublication >= nbPublications))
-				texteResume = "Désolé, je n'ai plus de publications en réserve pour le moment !"
+				texteResume = "Désolé, je n'ai plus de publications en réserve pour le moment !";
 
 			for (var i = indexPublication; i < limiteAffichage; i++) {
 
-				texteResume += publications[i]['titre'] + ' - ' + publications[i]['tags'] + '\u000A'
+				texteResume += boldify(publications[i]['titre']) + ' - ' + publications[i]['tags'] + '\u000A' + '\u000A';
 
 				quickReplies.push(
 					{
@@ -453,6 +464,64 @@ exports.enregistrerAvisChatbot = functions.https.onRequest((request, response) =
 		});
 
 });
+
+
+function boldify(str) {
+
+	var ts = {
+		tp: [{
+		        action: "acN",
+		        akO: [65, 90],
+		        akP: 119743
+		    }, {
+		        action: "acN",
+		        akO: [97, 122],
+		        akP: 119737
+		    }, {
+		        action: "acN",
+		        akO: [48, 57],
+		        akP: 120734
+		    }]
+		};
+	var tfs = {
+		acN: function(a, c) {
+		        return a.split("").map(function(a) {
+		            var t = a.charCodeAt(0);
+		            return t >= c.akO[0] && t <= c.akO[1] ? c.akQ ? String.fromCodePoint(c.akQ, t + c.akP) : a = String.fromCodePoint(t + c.akP) : a
+		        }).join("")
+		    }
+	};
+
+	str = removeAccents(str);
+	for (var i = 0; i < ts['tp'].length; i++) {
+
+    	var action = ts['tp'][i];
+	    
+	    if (action) {
+	      str = tfs[action.action](str, action);
+	    }
+  	}
+
+	return str;
+}
+
+function removeAccents(str) {
+  var accents    = 'ÀÁÂÃÄÅàáâãäåÒÓÔÕÕÖØòóôõöøÈÉÊËèéêëðÇçÐÌÍÎÏìíîïÙÚÛÜùúûüÑñŠšŸÿýŽž';
+  var accentsOut = "AAAAAAaaaaaaOOOOOOOooooooEEEEeeeeeCcDIIIIiiiiUUUUuuuuNnSsYyyZz";
+  str = str.split('');
+  var strLen = str.length;
+  var i, x;
+  for (i = 0; i < strLen; i++) {
+    if ((x = accents.indexOf(str[i])) != -1) {
+      str[i] = accentsOut[x];
+    }
+  }
+  
+  str = str.join('');
+  
+  return str;
+}
+
 
 
 function verifyParam(value) {
