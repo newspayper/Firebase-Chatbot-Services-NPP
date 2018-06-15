@@ -99,6 +99,8 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 
 			var texteResume = '';
 
+			var logPublications = '';
+
 			//Insertion des quick replies standard
 			quickReplies.push({"title": "Menu","block_names": ["Menu"]});
 
@@ -146,12 +148,15 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 			}
 
 			//Message de fin si jamais il n'y a plus de publication à afficher
-			if(termine && (indexPublication >= nbPublications))
+			if(termine && (indexPublication >= nbPublications)) {
 				texteResume = "Désolé, je n'ai plus de publications en réserve pour le moment !";
+				logPublications = "N/A";
+			}
 
 			for (var i = indexPublication; i < limiteAffichage; i++) {
 
 				texteResume += boldify(publications[i]['titre']) + ' - ' + publications[i]['tags'] + '\u000A' + '\u000A';
+				logPublications += publications[i].id + ',';
 
 				quickReplies.push(
 					{
@@ -188,7 +193,7 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 			var logs = {};
 
 			logs["timestamp"] = now.getTime();
-			logs["resume_publications"] = texteResume;
+			logs["contenu_envoye"] = logPublications;
 
 			var refUser = admin.database().ref('users').child(messengerUserId);
 			
@@ -266,7 +271,8 @@ exports.showCouverture = functions.https.onRequest((request, response) => {
 
 		logs["timestamp"] = now.getTime();
 		logs["idPublication"] = idPublication;
-		logs["couverture_envoyee"] = urlCouverture;
+		logs["contenu_envoye"] = "couverture";
+
 
 		var refUser = admin.database().ref('users').child(messengerUserId);
 		
@@ -342,7 +348,7 @@ exports.showSommaire = functions.https.onRequest((request, response) => {
 
 			logs["timestamp"] = now.getTime();
 			logs["idPublication"] = idPublication;
-			logs["sommaire_envoye"] = texteSommaire;
+			logs["contenu_envoye"] = "sommaire";
 
 			var refUser = admin.database().ref('users').child(messengerUserId);
 			
