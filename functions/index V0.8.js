@@ -23,15 +23,6 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 
 	const BDD_chatbot = admin.database().ref();
 
-	//recup infos user pour log
-	const messengerUserId	= request.query["messenger user id"];
-	const firstName			= request.query["first name"];
-	const lastName			= request.query["last name"];
-
-	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
-	if(!verifyParam(firstName)) {badRequest(response, "Unable to find request parameter 'firstName'.");return;}
-	if(!verifyParam(lastName)) {badRequest(response, "Unable to find request parameter 'lastName'.");return;}
-
 
 	var lecture = BDD_chatbot.child('publications').once('value')
 		.then(function(snapshot) {
@@ -62,12 +53,13 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 
 			var publications = Object.keys(publications_desordre)
 				.sort(function(a, b) {
-					return publications_desordre[b].date_parution - publications_desordre[a].date_parution; // Organize the category array
-				}).map(function(category) {
-					return publications_desordre[category]; // Convert array of categories to array of objects
-				});
+						return publications_desordre[b].date_parution - publications_desordre[a].date_parution; // Organize the category array
+					})
+					.map(function(category) {
+						return publications_desordre[category]; // Convert array of categories to array of objects
+					});
 
-			//console.log("publications sorted : " + JSON.stringify(publications));
+			console.log("publications sorted : " + JSON.stringify(publications));
 
 			const indexPublicationParam = request.query["indexPublication"];
 
@@ -182,27 +174,7 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 
 			console.log(JSON.stringify(reponseJSON));
 
-			//log de l'envoi à l'utilisateur
-			var now = new Date();
-
-			var logs = {};
-
-			logs["timestamp"] = now.getTime();
-			logs["resume_publications"] = texteResume;
-
-			var refUser = admin.database().ref('users').child(messengerUserId);
-			
-			var updates = {};
-			updates["nom"] = firstName + " " + lastName;
-			updates["messengerUserId"] = messengerUserId;	
-			updates["/logs/" + now.getTime()] = logs;
-
-			//console.log(JSON.stringify(updates));
-
-			refUser.update(updates)
-				.then(function() {
-					response.json(reponseJSON);
-				});
+			response.json(reponseJSON);
 
 		});
 		
@@ -213,12 +185,6 @@ exports.showCouverture = functions.https.onRequest((request, response) => {
 	console.log("chatbotNPP showCouverture : " + JSON.stringify(request.query) );
 
 	const BDD_chatbot = admin.database();
-
-	//recup infos user pour log
-	const messengerUserId	= request.query["messenger user id"];
-
-	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
-
 
 	const listePublications = BDD_chatbot.ref("publications");
 
@@ -259,27 +225,7 @@ exports.showCouverture = functions.https.onRequest((request, response) => {
 
 		console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
 
-		//log de l'envoi à l'utilisateur
-		var now = new Date();
-
-		var logs = {};
-
-		logs["timestamp"] = now.getTime();
-		logs["idPublication"] = idPublication;
-		logs["couverture_envoyee"] = urlCouverture;
-
-		var refUser = admin.database().ref('users').child(messengerUserId);
-		
-		var updates = {};
-		updates["messengerUserId"] = messengerUserId;	
-		updates["/logs/" + now.getTime()] = logs;
-
-		//console.log(JSON.stringify(updates));
-
-		refUser.update(updates)
-			.then(function() {
-				response.json(reponseJSON);
-			});
+		response.json(reponseJSON);
 
 	});
 
@@ -291,12 +237,6 @@ exports.showSommaire = functions.https.onRequest((request, response) => {
 	console.log("chatbotNPP showSommaire : " + JSON.stringify(request.query) );
 
 	const BDD_chatbot = admin.database();
-
-	//recup infos user pour log
-	const messengerUserId	= request.query["messenger user id"];
-
-	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
-
 
 	const listePublications = BDD_chatbot.ref("publications");
 
@@ -335,27 +275,7 @@ exports.showSommaire = functions.https.onRequest((request, response) => {
 
 			console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
 
-			//log de l'envoi à l'utilisateur
-			var now = new Date();
-
-			var logs = {};
-
-			logs["timestamp"] = now.getTime();
-			logs["idPublication"] = idPublication;
-			logs["sommaire_envoye"] = texteSommaire;
-
-			var refUser = admin.database().ref('users').child(messengerUserId);
-			
-			var updates = {};
-			updates["messengerUserId"] = messengerUserId;	
-			updates["/logs/" + now.getTime()] = logs;
-
-			//console.log(JSON.stringify(updates));
-
-			refUser.update(updates)
-				.then(function() {
-					response.json(reponseJSON);
-				});
+			response.json(reponseJSON);
 		}
 
 		
@@ -399,6 +319,11 @@ exports.enregistrerAvisPublication = functions.https.onRequest((request, respons
 				return;
 	}
 
+
+	var infosUser = {};
+
+	infosUser["nom"] = firstName + " " + lastName;
+	infosUser["messengerUserId"] = messengerUserId;
 
 	var reponse = {};
 
@@ -500,6 +425,11 @@ exports.enregistrerAvisChatbot = functions.https.onRequest((request, response) =
 	}
 
 
+	var infosUser = {};
+
+	infosUser["nom"] = firstName + " " + lastName;
+	infosUser["messengerUserId"] = messengerUserId;
+
 	var reponse = {};
 
 	if(feedbackAvis) {
@@ -535,47 +465,6 @@ exports.enregistrerAvisChatbot = functions.https.onRequest((request, response) =
 
 });
 
-
-
-exports.logAction = functions.https.onRequest((request, response) => {
-
-
-	response.end();
-
-	console.log("chatbotNPP logAction : " + JSON.stringify(request.body) );
-
-	const messengerUserId	= request.body["messenger user id"];
-	const lastBlock	= request.body["last visited block name"];
-	const lastUserInput	= request.body["last user freeform input"];
-	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
-	if(!verifyParam(lastBlock)) {badRequest(response, "Unable to find request parameter 'lastBlock'.");return;}
-	if(!verifyParam(lastUserInput)) {badRequest(response, "Unable to find request parameter 'lastUserInput'.");return;}
-
-
-	//log de l'envoi à l'utilisateur
-	var now = new Date();
-
-	var logs = {};
-
-	logs["timestamp"] = now.getTime();
-	logs["last_block"] = lastBlock;
-	logs["last_input"] = lastUserInput;
-
-	var refUser = admin.database().ref('users').child(messengerUserId);
-	
-	var updates = {};
-	updates["messengerUserId"] = messengerUserId;	
-	updates["/logs/" + now.getTime()] = logs;
-
-	//console.log(JSON.stringify(updates));
-
-	refUser.update(updates)
-		.then(function() {
-			response.end();
-		});
-
-
-});
 
 function boldify(str) {
 
