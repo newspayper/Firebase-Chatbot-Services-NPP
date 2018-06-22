@@ -5,7 +5,7 @@ const admin = require('firebase-admin');
 
 admin.initializeApp(functions.config().firebase);
 
-const nbAAfficher = 5;
+const nbAAfficher = 4;
 
 const notes = {
 	"10084" : 2,	//emoji coeur
@@ -155,7 +155,7 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 
 			for (var i = indexPublication; i < limiteAffichage; i++) {
 
-				texteResume += boldify(publications[i]['titre']) + ' - ' + publications[i]['tags'] + '\u000A' + '\u000A';
+				texteResume += majusculify(publications[i]['titre']) + '\u000A' + publications[i]['tags'] + '\u000A' + '\u000A';
 				logPublications += publications[i].id + ',';
 
 				quickReplies.push(
@@ -635,6 +635,25 @@ function removeAccents(str) {
   }
   
   str = str.join('');
+  
+  return str;
+}
+
+function majusculify(str) {
+  
+  var minAccents = "àáâãäåòóôõöøèéêëçìíîïùúûüñšÿýž";
+  var majAccents = "ÀÁÂÃÄÅÒÓÔÕÖØÈÉÊËÇÌÍÎÏÙÚÛÜÑŠŸŽ"
+  str = str.split('');
+  var strLen = str.length;
+  var i, x;
+  for (i = 0; i < strLen; i++) {
+    if ((x = minAccents.indexOf(str[i])) != -1) {
+      str[i] = majAccents[x];
+    }
+  }
+  
+  str = str.join('');
+  str = str.toUpperCase();
   
   return str;
 }
