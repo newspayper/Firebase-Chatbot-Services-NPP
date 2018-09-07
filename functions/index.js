@@ -29,8 +29,8 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 	const lastName			= request.query["last name"];
 
 	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
-	if(!verifyParam(firstName)) {badRequest(response, "Unable to find request parameter 'firstName'.");return;}
-	if(!verifyParam(lastName)) {badRequest(response, "Unable to find request parameter 'lastName'.");return;}
+	//if(!verifyParam(firstName)) {badRequest(response, "Unable to find request parameter 'firstName'.");return;}
+	//if(!verifyParam(lastName)) {badRequest(response, "Unable to find request parameter 'lastName'.");return;}
 
 
 	var lecture = BDD_chatbot.child('publications').once('value')
@@ -280,10 +280,11 @@ exports.showCouverture = functions.https.onRequest((request, response) => {
 		updates["messengerUserId"] = messengerUserId;	
 		updates["/logs/" + now.getTime()] = logs;
 
-		//console.log(JSON.stringify(updates));
+		console.log("updates : " + JSON.stringify(updates));
 
 		refUser.update(updates)
 			.then(function() {
+				console.log("envoi réponse JSON");
 				response.json(reponseJSON);
 			});
 
@@ -356,10 +357,11 @@ exports.showSommaire = functions.https.onRequest((request, response) => {
 			updates["messengerUserId"] = messengerUserId;	
 			updates["/logs/" + now.getTime()] = logs;
 
-			//console.log(JSON.stringify(updates));
+			console.log("updates : " + JSON.stringify(updates));
 
 			refUser.update(updates)
 				.then(function() {
+					console.log("envoi réponse JSON");
 					response.json(reponseJSON);
 				});
 		}
@@ -388,14 +390,8 @@ exports.enregistrerAvisPublication = functions.https.onRequest((request, respons
 				badRequest(response, "Unable to find request parameter 'messengerUserId'.");
 				return;
 	}
-	if( !verifyParam(firstName) ) {
-				badRequest(response, "Unable to find request parameter 'firstName'.");
-				return;
-	}
-	if( !verifyParam(lastName) ) {
-				badRequest(response, "Unable to find request parameter 'lastName'.");
-				return;
-	}
+	//if( !verifyParam(firstName) ) {badRequest(response, "Unable to find request parameter 'firstName'.");return;}
+	//if( !verifyParam(lastName) ) {badRequest(response, "Unable to find request parameter 'lastName'.");return;}
 	if( !verifyParam(userAnswer) ) {
 				badRequest(response, "Unable to find request parameter 'userAnswer'.");
 				return;
@@ -444,14 +440,8 @@ exports.modifierAbonnement = functions.https.onRequest((request, response) => {
 				badRequest(response, "Unable to find request parameter 'messengerUserId'.");
 				return;
 	}
-	if( !verifyParam(firstName) ) {
-				badRequest(response, "Unable to find request parameter 'firstName'.");
-				return;
-	}
-	if( !verifyParam(lastName) ) {
-				badRequest(response, "Unable to find request parameter 'lastName'.");
-				return;
-	}
+	//if( !verifyParam(firstName) ) {badRequest(response, "Unable to find request parameter 'firstName'.");return;}
+	//if( !verifyParam(lastName) ) {badRequest(response, "Unable to find request parameter 'lastName'.");return;}
 	if( !verifyParam(abonnement) ) {
 				badRequest(response, "Unable to find request parameter 'abonnement'.");
 				return;
@@ -496,14 +486,8 @@ exports.enregistrerAvisChatbot = functions.https.onRequest((request, response) =
 				return;
 	}
 	
-	if( !verifyParam(firstName) ) {
-				badRequest(response, "Unable to find request parameter 'firstName'.");
-				return;
-	}
-	if( !verifyParam(lastName) ) {
-				badRequest(response, "Unable to find request parameter 'lastName'.");
-				return;
-	}
+	//if( !verifyParam(firstName) ) {badRequest(response, "Unable to find request parameter 'firstName'.");return;}
+	//if( !verifyParam(lastName) ) {badRequest(response, "Unable to find request parameter 'lastName'.");return;}
 
 
 	var reponse = {};
@@ -679,104 +663,46 @@ function badRequest(response, message) {
 
 exports.showTest = functions.https.onRequest((request, response) => {
 
-
-	var JSONquimarchepas = {
-	    "set_attributes":
-	    {
-	        "indexPublication":2,
-	        "termine":true
-	    },
-	    "messages": [
-	        {
-	            "text":"@@@Le 1 - socialiste;horando Le Canard Enchaîné - grève;machin;truc Le Monde Diplomatique - tag1;tag2 ",
-	            "quick replies": [
-	                {
-	                    "title":"Le 1",
-	                    "block_names": ["Montre Details"],
-	                    "set_attributes":{
-	                        "titre":"Le 1"
-	                    }
-	                },
-	                {
-	                    "title":"Le Canard Enchaîné",
-	                    "block_names": ["Montre Details"],
-	                    "set_attributes":{
-	                        "titre":"Le Canard Enchaîné"
-	                    }
-	                },
-	                {
-	                    "title":"Le Monde Diplomatique",
-	                    "block_names": ["Montre Details"],
-	                    "set_attributes":{
-	                        "titre":"Le Monde Diplomatique"
-	                    }
-	                }
-	            ]
-	        }
-	    ]
-
-	};
-
-	var JSON = {
-		"set_attributes": 
-		{
-			"indexPublication":2,
-			"termine":true
-		},
-		"messages": [
-		    {
-		      "text":  "Le 1 - socialiste;horando\u000ALe Canard Enchaîné - grève;machin;truc\u000ALe Monde Diplomatique - tag1;tag2",
-		      "quick_replies": [
-		        {
-					"title":"Le 1",
-		        	"block_names": ["Fin"],
-		        	"set_attributes":
-					{
-						"titre":"Le 1",
-						"toto":"fpleurgh1"
-					}
-				},
-				{
-					"title":"Le Canard Enchaîné",
-					"block_names": ["Fin"],
-					"set_attributes":
-					{
-						"titre":"Le Canard Enchaîné",
-						"toto":"fpleurgh2"
-					}
-				},
-				{
-					"title":"Le Monde Diplomatique",
-					"block_names": ["Fin"],
-					"set_attributes":
-					{
-						"titre":"Le Monde Diplomatique",
-						"toto":"fpleurgh3"
-					}
-				}
-		      ]
-		    }
-	  	]
-	};
-
 	var JSONtest = 
 	{
-  "messages": [
-    {
-      "attachment": {
-        "type": "image",
-        "payload": {
-          "url": "http://www.journaux.fr/images/revues/M4858_cache_s182018.jpg"
-        }
-      },
-      "quick_replies": [
-        {
-          "title": "OK"
-        }
-      ]
-    }
-  ]
-};
+	 "messages": [
+	    {
+	     	"attachment":{
+	        	"type":"template",
+		        "payload":{
+		          	"template_type":"generic",
+			        "image_aspect_ratio": "square",
+			        "elements":[
+			            {
+			              "title":"Chatfuel Rockets Jersey",
+			              "image_url":"https://rockets.chatfuel.com/assets/shirt.jpg",
+			              "subtitle":"Size: M",
+			              "buttons":[
+			                {
+			                  "type":"web_url",
+			                  "url":"https://google.fr",
+			                  "title":"View Item"
+			                }
+			              ]
+			            },
+			            {
+			              "title":"Chatfuel Rockets Jersey",
+			              "image_url":"https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png",
+			              "subtitle":"1111111111 222222222 333333333 444444444 555555555 666666666 777777777 888888888",
+			              "buttons":[
+			                {
+			                  "type":"web_url",
+			                  "url":"https://google.fr",
+			                  "title":"titeul"
+			                }
+			              ]
+			            }
+			        ]
+		        }
+	      }
+	    }
+	  ]
+	};
 
 	response.json(JSONtest);
 
