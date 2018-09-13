@@ -1,9 +1,12 @@
 
 const functions = require('firebase-functions');
-
 const admin = require('firebase-admin');
 
 admin.initializeApp(functions.config().firebase);
+
+
+var publicationsRef = admin.database().ref().child("publications");
+var titresRef = admin.database().ref().child("titres");
 
 const nbAAfficher = 4;
 
@@ -15,7 +18,6 @@ const notes = {
 	"128078" : -1,	//emoji pouce vers le bas
 	"128169" : -2,	//emoji caca
 }
-
 
 exports.showPublications = functions.https.onRequest((request, response) => {
 
@@ -212,6 +214,98 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 		});
 		
 });
+
+
+exports.showCardPublication = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP showCardPublication : " + JSON.stringify(request.query) );
+
+	const messengerUserId	= request.query["messenger user id"];
+	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
+	const idPublication = request.query["publication"];
+	if( !verifyParam(idPublication) ) {badRequest(response, "Unable to find request parameter 'publication'.");return;}
+
+
+	var refTitre = idPublication.split('_')[0];
+	var ref = titresRef.child(refTitre).child('publications');
+	
+	var query;
+	if(undefined == idPublication.split('_')[1]){
+		query = ref.orderByChild('date_parution').limitToLast(1);
+	}
+	else {
+		query = ref.child(idPublication);
+	}
+
+	query.once('value').then(function(snapshot) {
+
+		// console.log('snapshot => ' + JSON.stringify(snapshot));
+		if(null==snapshot.val()) {
+			badRequest(response, "La référence de la publication '" + idPublication + "' est erronée.");
+		}
+		else {
+
+		var publication;
+		if(undefined == idPublication.split('_')[1]){
+			publication = snapshot.val()[Object.keys(snapshot.val())[0]];
+		}
+		else {
+			publication = snapshot.val();
+		}
+
+			
+			console.log(JSON.stringify(publication));
+		
+			var reponseJSON = 	
+			{
+				"messages": [
+				{
+					"attachment":{
+					"type":"template",
+						"payload":{
+							"template_type":"generic",
+							"image_aspect_ratio": "square",
+							"elements":[
+							{
+								"title": publication.titre + " n°" + publication.numero,
+								"image_url": publication.URL_couv,
+								"subtitle": publication.tags,
+								"buttons":[
+								{
+									"type":"web_url",
+									"url":"https://google.fr",
+									"title":"Acheter"
+								},
+								{
+									"type":"web_url",
+									"url":"https://google.fr",
+									"title":"Sommaire"
+								},
+								{
+									"type":"web_url",
+									"url":"https://google.fr",
+									"title":"Partager"
+								}
+								]
+							}
+							]
+						}
+					}
+				}
+				]
+			};
+			// console.log(JSON.stringify(reponseJSON))
+			response.json(reponseJSON);
+		}
+
+	
+	});
+
+
+});
+
+
+
 
 exports.showCouverture = functions.https.onRequest((request, response) => {
 
@@ -660,6 +754,8 @@ function badRequest(response, message) {
 	response.status(400).json({ "messages": [ { "text": message } ] });
 
 }
+
+
 
 exports.showTest = functions.https.onRequest((request, response) => {
 
