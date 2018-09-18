@@ -8,6 +8,10 @@ admin.initializeApp(functions.config().firebase);
 var publicationsRef = admin.database().ref().child("publications");
 var titresRef = admin.database().ref().child("titres");
 
+
+const refLink = "m.me/821278971407519";
+// const refLink = "m.me/newspayper.fr";
+
 const nbAAfficher = 4;
 
 const notes = {
@@ -34,13 +38,14 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 	//if(!verifyParam(firstName)) {badRequest(response, "Unable to find request parameter 'firstName'.");return;}
 	//if(!verifyParam(lastName)) {badRequest(response, "Unable to find request parameter 'lastName'.");return;}
 
-
+	console.log("Pré-lecture BDD");
 	var lecture = BDD_chatbot.child('publications').once('value')
 		.then(function(snapshot) {
 
 			var publications_desordre = snapshot.val();
 
 			//console.log("pub desordre = " + JSON.stringify(publications_desordre));
+			console.log("Publications récupérées dans le désordre ; début tri");
 
 			var i = 0;
 			snapshot.forEach(function(childSnapshot) {
@@ -70,6 +75,7 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 				});
 
 			//console.log("publications sorted : " + JSON.stringify(publications));
+			console.log("Fin tri publications");
 
 			const indexPublicationParam = request.query["indexPublication"];
 
@@ -103,6 +109,7 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 
 			var logPublications = '';
 
+			console.log("Début constitution réponse JSON");
 			//Insertion des quick replies standard
 			quickReplies.push({"title": "Menu","block_names": ["Menu"]});
 
@@ -155,6 +162,7 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 				logPublications = "N/A";
 			}
 
+			console.log("Boucle sur les publications à rajouter dans le JSON");
 			for (var i = indexPublication; i < limiteAffichage; i++) {
 
 				texteResume += majusculify(publications[i]['titre']) + '\u000A' + publications[i]['tags'] + '\u000A' + '\u000A';
@@ -187,7 +195,7 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 				}
 			];
 
-			console.log(JSON.stringify(reponseJSON));
+			console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
 
 			//log de l'envoi à l'utilisateur
 			var now = new Date();
@@ -215,6 +223,250 @@ exports.showPublications = functions.https.onRequest((request, response) => {
 		
 });
 
+exports.showGalerie = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP showGalerie : " + JSON.stringify(request.query) );
+
+	const messengerUserId	= request.query["messenger user id"];
+	const firstName			= request.query["first name"];
+	const lastName			= request.query["last name"];
+
+	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
+
+	console.log("Pré-lecture BDD");
+
+	var lecture = publicationsRef.once('value')
+		.then(function(snapshot) {
+
+			var publications_desordre = snapshot.val();
+
+			console.log("Publications récupérées dans le désordre ; début tri");
+
+			var i = 0;
+			snapshot.forEach(function(childSnapshot) {
+
+				var date_parution = publications_desordre[childSnapshot.key].date_parution;
+				var now = new Date();
+				//Si déjà parue on s'en occupe
+				if(date_parution < now.getTime()) {
+					publications_desordre[childSnapshot.key].id = childSnapshot.key;
+				}
+				else { //Sinon on la retire des publications à afficher
+					delete publications_desordre[childSnapshot.key];
+				}
+				i++;
+			});
+
+			var publications = Object.keys(publications_desordre)
+				.sort(function(a, b) {
+					return publications_desordre[b].date_parution - publications_desordre[a].date_parution; // Organize the category array
+				}).map(function(category) {
+					return publications_desordre[category]; // Convert array of categories to array of objects
+				});
+
+			//console.log("publications sorted : " + JSON.stringify(publications));
+			console.log("Fin tri publications");
+
+			const indexPublicationParam = request.query["indexPublication"];
+
+			var indexPublication = parseInt(indexPublicationParam, 10);
+
+			if( !verifyParam(indexPublication) ) {
+				badRequest(response, "Unable to find request parameter 'indexPublication'.");
+				return;
+			}
+
+			if( isNaN(indexPublication) ) {
+				indexPublication = 0;
+			}
+
+			const nbPublications = publications.length;
+
+			var limiteAffichage, termine;
+
+			if(indexPublication + nbAAfficher > nbPublications) {
+				limiteAffichage = nbPublications;
+				termine = true;
+			}
+			else {
+				limiteAffichage = indexPublication + nbAAfficher;
+				termine = false;
+			}
+
+			var quickReplies = [];
+
+			var cards = [];
+
+			var texteResume = '';
+
+			var logPublications = '';
+
+			console.log("Début constitution réponse JSON");
+			//Insertion des quick replies standard
+			quickReplies.push({"title": "Menu","block_names": ["Menu"]});
+
+			var retourArriere = limiteAffichage - nbAAfficher * 2;
+
+			if(retourArriere >= 0)
+			{
+				quickReplies.push(
+					{
+						"title": " \ud83d\udd3c",
+						"block_names": ["Galerie Chrono"],
+						"set_attributes":
+						{
+							"indexPublication": retourArriere
+						}
+					}
+				);
+			}
+
+			if(!termine)
+			{
+				quickReplies.push(
+					{
+						"title": " \ud83d\udd3d",
+						"block_names": ["Galerie Chrono"],
+						"set_attributes":
+						{
+							"indexPublication": limiteAffichage
+						}
+					}
+				);
+			}
+			else
+			{
+				quickReplies.push(
+					{
+						"title": "Recommencer",
+						"block_names": ["Galerie Chrono"],
+						"set_attributes":
+						{
+							"indexPublication": 0
+						}
+					}
+				);
+			}
+
+			//Message de fin si jamais il n'y a plus de publication à afficher
+			if(termine && (indexPublication >= nbPublications)) {
+				texteResume = "Désolé, je n'ai plus de publications en réserve pour le moment !";
+				logPublications = "N/A";
+			}
+
+			console.log("Boucle sur les publications à rajouter dans le JSON");
+			for (var i = indexPublication; i < limiteAffichage; i++) {
+
+				cards.push(
+					{
+						"title": publications[i].titre + " n°" + publications[i].numero,
+						"image_url": publications[i].URL_couv,
+						"subtitle": publications[i].tags,
+						"default_action": {
+							"type": "web_url",
+							"url": publications[i].URL_couv
+						},
+						"buttons":[
+						{
+							"type":"show_block",
+							"block_names":["Sommaire"],
+							"title":"\ud83d\udcdd Sommaire",
+							"set_attributes":
+							{
+								"publication": publications[i].id
+							}
+						},
+						{
+							"type":"show_block",
+							"block_names":["Share"],
+							"title":"\ud83d\udc8c Partager",
+							"set_attributes":
+							{
+								"publication": publications[i].id
+							}
+						}
+						]
+					}
+				);
+
+			}
+
+			
+			var reponseJSON = {};
+
+			reponseJSON.set_attributes = 
+			{
+				"termine": termine
+			};
+
+			reponseJSON.messages =
+			[
+				{
+							"attachment":{
+							"type":"template",
+								"payload":{
+									"template_type":"generic",
+									"image_aspect_ratio": "square",
+									"elements": cards
+									}
+							},
+							"quick_replies": quickReplies
+				}
+
+			];
+
+			console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+
+			//log de l'envoi à l'utilisateur
+			var now = new Date();
+
+			var logs = {};
+
+			logs["timestamp"] = now.getTime();
+			logs["contenu_envoye"] = logPublications;
+
+			var refUser = admin.database().ref('users').child(messengerUserId);
+			
+			var updates = {};
+			updates["nom"] = firstName + " " + lastName;
+			updates["messengerUserId"] = messengerUserId;	
+			updates["/logs/" + now.getTime()] = logs;
+
+			//console.log(JSON.stringify(updates));
+
+			refUser.update(updates)
+				.then(function() {
+					response.json(reponseJSON);
+				});
+
+		});
+
+
+
+});
+
+exports.refParser = functions.https.onRequest((request, response) => {
+	
+	console.log("chatbotNPP refParser : " + JSON.stringify(request.query) );
+
+	const messengerUserId	= request.query["messenger user id"];
+	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
+	const ref	= request.query["ref"];
+	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'ref'.");return;}
+
+	var publication = ref.split("|")[1];
+
+	var reponseJSON = 
+	{
+		"set_attributes": {
+			"publication": publication
+		}
+	};
+
+	// console.log(JSON.stringify(reponseJSON));
+	response.json(reponseJSON);
+
+});
 
 exports.showCardPublication = functions.https.onRequest((request, response) => {
 
@@ -245,16 +497,18 @@ exports.showCardPublication = functions.https.onRequest((request, response) => {
 		}
 		else {
 
-		var publication;
+		var publication, idPub;
 		if(undefined == idPublication.split('_')[1]){
-			publication = snapshot.val()[Object.keys(snapshot.val())[0]];
+			idPub = Object.keys(snapshot.val())[0];
+			publication = snapshot.val()[idPub];
 		}
 		else {
 			publication = snapshot.val();
+			idPub = idPublication;
 		}
-
 			
-			console.log(JSON.stringify(publication));
+			// console.log(JSON.stringify(publication));
+			console.log("id publication : " + idPub);
 		
 			var reponseJSON = 	
 			{
@@ -272,19 +526,22 @@ exports.showCardPublication = functions.https.onRequest((request, response) => {
 								"subtitle": publication.tags,
 								"buttons":[
 								{
-									"type":"web_url",
-									"url":"https://google.fr",
-									"title":"Acheter"
+									"type":"show_block",
+									"block_names":["Sommaire"],
+									"title":"\ud83d\udcdd Sommaire",
+									"set_attributes":
+									{
+										"publication": idPub
+									}
 								},
 								{
-									"type":"web_url",
-									"url":"https://google.fr",
-									"title":"Sommaire"
-								},
-								{
-									"type":"web_url",
-									"url":"https://google.fr",
-									"title":"Partager"
+									"type":"show_block",
+									"block_names":["Share"],
+									"title":"\ud83d\udc8c Partager",
+									"set_attributes":
+									{
+										"publication": idPub
+									}
 								}
 								]
 							}
@@ -298,13 +555,156 @@ exports.showCardPublication = functions.https.onRequest((request, response) => {
 			response.json(reponseJSON);
 		}
 
-	
 	});
-
 
 });
 
+exports.shareCardPublication = functions.https.onRequest((request, response) => {
 
+	console.log("chatbotNPP showShareCardPublication : " + JSON.stringify(request.query) );
+
+	const messengerUserId	= request.query["messenger user id"];
+	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
+	const firstName = request.query["first name"];
+	if(!verifyParam(messengerUserId)) {console.log("Impossible de récupérer l'attribut 'first name'");}
+	const lastName = request.query["last name"];
+	if(!verifyParam(messengerUserId)) {console.log("Impossible de récupérer l'attribut 'last name'");}
+	const idPublication = request.query["publication"];
+	if( !verifyParam(idPublication) ) {badRequest(response, "Unable to find request parameter 'publication'.");return;}
+
+
+	var refTitre = idPublication.split('_')[0];
+	var ref = titresRef.child(refTitre).child('publications');
+	
+	var query = ref.child(idPublication);
+
+	query.once('value').then(function(snapshot) {
+
+		if(null==snapshot.val()) {
+			badRequest(response, "La référence de la publication '" + idPublication + "' est erronée.");
+		}
+		else {
+
+			var publication = snapshot.val(); 
+			// console.log(JSON.stringify(publication));
+			// console.log("id publication : " + idPublication);
+		
+			var reponseJSON = 	
+			{
+				"messages": [
+				{
+					"attachment":{
+					"type":"template",
+						"payload":{
+							"template_type":"generic",
+							"image_aspect_ratio": "square",
+							"elements":[
+							{
+								"title": "Découvrir " + publication.titre + " n°" + publication.numero + " avec Newspayper !",
+								"image_url": publication.URL_couv,
+								"subtitle": "Cliquer sur l'image pour afficher la publication",
+								"default_action": {
+									"type": "web_url",
+									"url": refLink + "?ref=sharedPublication|" + idPublication
+              					},
+								"buttons":[
+								// {
+								// 	"type": "web_url",
+								// 	"url": refLink + "?ref=sharedPublication|" + idPublication,
+								// 	"title": "\ud83d\udcf0 Voir le titre"
+								// },
+								{
+									"type":"element_share"
+								}
+								]
+							}
+							]
+						}
+					}
+				}
+				]
+			};
+			console.log(JSON.stringify(reponseJSON))
+			response.json(reponseJSON);
+		}
+
+	});
+
+});
+
+exports.showSommaire2 = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP showSommaire2 : " + JSON.stringify(request.query) );
+
+	const messengerUserId	= request.query["messenger user id"];
+	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
+	const idPublication = request.query["publication"];
+	if( !verifyParam(idPublication) ) {badRequest(response, "Unable to find request parameter 'publication'.");return;}
+
+
+	var refTitre = idPublication.split('_')[0];
+	var ref = titresRef.child(refTitre).child('publications');
+	
+	var query = ref.child(idPublication).child('sommaire');
+
+	query.once('value').then(function(snapshot) {
+
+		var texteSommaire = snapshot.val();
+
+		if(texteSommaire == undefined || texteSommaire == "" || texteSommaire.length > 2000)
+		{
+			console.log("Pas de sommaire à afficher");
+			response.end();
+		}
+		else
+		{
+			var reponseJSON = 
+			{
+				"messages":[
+					{
+						"text": "Voici le sommaire :"
+					},
+					{
+						"text": texteSommaire,
+						"quick_replies": [
+						{
+							"title": "\ud83d\udcf0 Autres titres"
+						}
+						] 
+					
+					}
+				]
+			};
+
+			console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+
+			//log de l'envoi à l'utilisateur
+			var now = new Date();
+
+			var logs = {};
+
+			logs["timestamp"] = now.getTime();
+			logs["idPublication"] = idPublication;
+			logs["contenu_envoye"] = "sommaire";
+
+			var refUser = admin.database().ref('users').child(messengerUserId);
+			
+			var updates = {};
+			updates["messengerUserId"] = messengerUserId;	
+			updates["/logs/" + now.getTime()] = logs;
+
+			console.log("updates : " + JSON.stringify(updates));
+
+			refUser.update(updates)
+				.then(function() {
+					console.log("envoi réponse JSON");
+					response.json(reponseJSON);
+				});
+		}
+		
+	});
+
+});
 
 
 exports.showCouverture = functions.https.onRequest((request, response) => {
@@ -759,45 +1159,110 @@ function badRequest(response, message) {
 
 exports.showTest = functions.https.onRequest((request, response) => {
 
-	var JSONtest = 
+
+	var quickReplies = [];
+	quickReplies.push(
+					{
+						"title": "QR1",
+						"block_names": ["Montre Details"]
+					}
+				);
+		quickReplies.push(
+					{
+						"title": "QR2",
+						"block_names": ["Montre Details"]
+					}
+				);
+
+	var JSONtest =
 	{
-	 "messages": [
-	    {
-	     	"attachment":{
-	        	"type":"template",
-		        "payload":{
-		          	"template_type":"generic",
-			        "image_aspect_ratio": "square",
-			        "elements":[
-			            {
-			              "title":"Chatfuel Rockets Jersey",
-			              "image_url":"https://rockets.chatfuel.com/assets/shirt.jpg",
-			              "subtitle":"Size: M",
-			              "buttons":[
-			                {
-			                  "type":"web_url",
-			                  "url":"https://google.fr",
-			                  "title":"View Item"
-			                }
-			              ]
-			            },
-			            {
-			              "title":"Chatfuel Rockets Jersey",
-			              "image_url":"https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png",
-			              "subtitle":"1111111111 222222222 333333333 444444444 555555555 666666666 777777777 888888888",
-			              "buttons":[
-			                {
-			                  "type":"web_url",
-			                  "url":"https://google.fr",
-			                  "title":"titeul"
-			                }
-			              ]
-			            }
-			        ]
-		        }
-	      }
-	    }
-	  ]
+
+    "set_attributes":{
+        "termine":false
+    },
+    "messages":[
+        {
+            "attachment":{
+                "type":"template",
+                "payload":{
+                    "template_type":"generic",
+                    "image_aspect_ratio":"square",
+                    "elements":[
+                        {
+                            "title":"Le Journal du Dimanche n°3740",
+                            "image_url":"https://static.milibris.com/thumbnail/issue/a88459f0-595b-491f-9017-f099d453c05f/front/catalog-cover-large.png",
+                            "subtitle":" ont peur",
+                            "default_action":{
+                                "type":"web_url",
+                                "url":"https://static.milibris.com/thumbnail/issue/a88459f0-595b-491f-9017-f099d453c05f/front/catalog-cover-large.png"
+                            },
+                            "buttons":[
+                                {
+                                    "type":"show_block",
+                                    "block_names":[
+                                        "JSON Test 2"
+                                    ],
+                                    "title":"loop"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            "quick_replies":[
+                {
+                    "title":"Menu",
+                    "block_names":[
+                        "Menu"
+                    ]
+                },
+                {
+                    "title":" 🔽",
+                    "block_names":[
+                        "JSON Test 2"
+                    ],
+                    "set_attributes":{
+                        "indexPublication":4
+                    }
+                }
+            ]
+        }
+    ]
+
+};
+
+
+	var JSONtest2 = 
+	{
+		"messages": [
+		{
+					"attachment":{
+					"type":"template",
+						"payload":{
+							"template_type":"generic",
+							"image_aspect_ratio": "square",
+							"elements":[
+							{
+								"title": "Découvrir le publication.titre n° publication.numero avec Newspayper !",
+								"image_url": "https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png",
+								"subtitle": "Cliquer sur l'image pour afficher la publication",
+								"default_action": {
+									"type": "web_url",
+									"url": refLink + "?ref=JSON%20test"
+									// "messenger_extensions": true
+								},
+								"buttons":[
+								{
+									"type":"element_share"
+								}
+								]
+							}
+							]
+						}
+					},
+					"quick_replies": quickReplies
+		}
+	]
 	};
 
 	response.json(JSONtest);
