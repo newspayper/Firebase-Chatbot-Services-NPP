@@ -9,7 +9,7 @@ var publicationsRef = admin.database().ref().child("publications");
 var titresRef = admin.database().ref().child("titres");
 
 
-const refLink = "m.me/821278971407519";
+const refLink = "https://m.me/821278971407519";
 // const refLink = "m.me/newspayper.fr";
 
 const nbAAfficher = 4;
@@ -600,19 +600,19 @@ exports.shareCardPublication = functions.https.onRequest((request, response) => 
 							"image_aspect_ratio": "square",
 							"elements":[
 							{
-								"title": "Découvrir " + publication.titre + " n°" + publication.numero + " avec Newspayper !",
+								"title": "\u2705 Découvre " + publication.titre + " n°" + publication.numero + " avec Newspayper !",
 								"image_url": publication.URL_couv,
-								"subtitle": "Cliquer sur l'image pour afficher la publication",
+								"subtitle": "Pour voir les détails, clique sur l'image ou sur le bouton ci-dessous \ud83d\udc47",
 								"default_action": {
 									"type": "web_url",
-									"url": refLink + "?ref=sharedPublication|" + idPublication
+									"url": refLink + "?ref=sharedPublication%7C" + idPublication
               					},
 								"buttons":[
-								// {
-								// 	"type": "web_url",
-								// 	"url": refLink + "?ref=sharedPublication|" + idPublication,
-								// 	"title": "\ud83d\udcf0 Voir le titre"
-								// },
+								{
+									"type": "web_url",
+									"url": refLink + "?ref=sharedPublication%7C" + idPublication,
+									"title": "\ud83d\udd0e Voir les détails"
+								},
 								{
 									"type":"element_share"
 								}
@@ -669,7 +669,13 @@ exports.showSommaire2 = functions.https.onRequest((request, response) => {
 						"quick_replies": [
 						{
 							"title": "\ud83d\udcf0 Autres titres"
-						}
+						},
+						{
+		                    "title":"\ud83d\udc8c Partager",
+		                    "block_names":[
+		                        "Share"
+		                    ]
+		                }
 						] 
 					
 					}
