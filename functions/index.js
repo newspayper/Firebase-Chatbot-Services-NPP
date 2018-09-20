@@ -9,8 +9,8 @@ var publicationsRef = admin.database().ref().child("publications");
 var titresRef = admin.database().ref().child("titres");
 
 
-const refLink = "https://m.me/821278971407519";
-// const refLink = "m.me/newspayper.fr";
+// const refLink = "https://m.me/821278971407519";
+const refLink = "https://m.me/newspayper.fr";
 
 const nbAAfficher = 4;
 
@@ -524,6 +524,10 @@ exports.showCardPublication = functions.https.onRequest((request, response) => {
 								"title": publication.titre + " n°" + publication.numero,
 								"image_url": publication.URL_couv,
 								"subtitle": publication.tags,
+								"default_action": {
+									"type": "web_url",
+									"url": publication.URL_couv
+								},
 								"buttons":[
 								{
 									"type":"show_block",
