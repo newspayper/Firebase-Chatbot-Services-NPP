@@ -12,7 +12,7 @@ var titresRef = admin.database().ref().child("titres");
 const refLink = "m.me/821278971407519";
 // const refLink = "m.me/newspayper.fr";
 
-const nbAAfficher = 4;
+const nbAAfficher = 10;
 
 const notes = {
 	"10084" : 2,	//emoji coeur
