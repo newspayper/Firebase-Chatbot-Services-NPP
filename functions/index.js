@@ -12,7 +12,7 @@ var titresRef = admin.database().ref().child("titres");
 // const refLink = "https://m.me/821278971407519";
 const refLink = "https://m.me/newspayper.fr";
 
-const nbAAfficher = 10;
+const nbAAfficher = 8;
 
 const notes = {
 	"10084" : 2,	//emoji coeur
@@ -357,7 +357,7 @@ exports.showGalerie = functions.https.onRequest((request, response) => {
 			console.log("Boucle sur les publications à rajouter dans le JSON");
 			for (var i = indexPublication; i < limiteAffichage; i++) {
 
-				cards.push(
+				var card = 
 					{
 						"title": publications[i].titre + " n°" + publications[i].numero,
 						"image_url": publications[i].URL_couv,
@@ -386,8 +386,25 @@ exports.showGalerie = functions.https.onRequest((request, response) => {
 							}
 						}
 						]
-					}
-				);
+					};
+
+				if(undefined!=publications[i].URL_achat && ""!=publications[i].URL_achat && " "!=publications[i].URL_achat)
+				{
+					card.buttons.push(
+							{
+								"type":"web_url",
+								"url":publications[i].URL_achat,
+								"title":"\ud83d\uded2 Acheter"
+								// "set_attributes":
+								// {
+								// 	"publication": publications[i].id
+								// }
+								//Memo : log du click ?
+							}
+						);
+				}
+
+				cards.push(card);
 
 			}
 
@@ -410,6 +427,299 @@ exports.showGalerie = functions.https.onRequest((request, response) => {
 									"elements": cards
 									}
 							},
+							"quick_replies": quickReplies
+				}
+
+			];
+
+			console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+
+			//log de l'envoi à l'utilisateur
+			var now = new Date();
+
+			var logs = {};
+
+			logs["timestamp"] = now.getTime();
+			logs["contenu_envoye"] = logPublications;
+
+			var refUser = admin.database().ref('users').child(messengerUserId);
+			
+			var updates = {};
+			updates["nom"] = firstName + " " + lastName;
+			updates["messengerUserId"] = messengerUserId;	
+			updates["/logs/" + now.getTime()] = logs;
+
+			//console.log(JSON.stringify(updates));
+
+			refUser.update(updates)
+				.then(function() {
+					response.json(reponseJSON);
+				});
+
+		});
+
+
+
+});
+
+exports.showGalerie2 = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP showGalerie : " + JSON.stringify(request.query) );
+
+	const messengerUserId	= request.query["messenger user id"];
+	const firstName			= request.query["first name"];
+	const lastName			= request.query["last name"];
+
+	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
+
+	console.log("Pré-lecture BDD");
+
+	var lecture = publicationsRef.once('value')
+		.then(function(snapshot) {
+
+			var publications_desordre = snapshot.val();
+
+			console.log("Publications récupérées dans le désordre ; début tri");
+
+			var i = 0;
+			snapshot.forEach(function(childSnapshot) {
+
+				var date_parution = publications_desordre[childSnapshot.key].date_parution;
+				var now = new Date();
+				//Si déjà parue on s'en occupe
+				if(date_parution < now.getTime()) {
+					publications_desordre[childSnapshot.key].id = childSnapshot.key;
+				}
+				else { //Sinon on la retire des publications à afficher
+					delete publications_desordre[childSnapshot.key];
+				}
+				i++;
+			});
+
+			var publications = Object.keys(publications_desordre)
+				.sort(function(a, b) {
+					return publications_desordre[b].date_parution - publications_desordre[a].date_parution; // Organize the category array
+				}).map(function(category) {
+					return publications_desordre[category]; // Convert array of categories to array of objects
+				});
+
+			//console.log("publications sorted : " + JSON.stringify(publications));
+			console.log("Fin tri publications");
+
+			const indexPublicationParam = request.query["indexPublication"];
+
+			var indexPublication = parseInt(indexPublicationParam, 10);
+
+			if( !verifyParam(indexPublication) ) {
+				badRequest(response, "Unable to find request parameter 'indexPublication'.");
+				return;
+			}
+
+			if( isNaN(indexPublication) ) {
+				indexPublication = 0;
+			}
+
+			const nbPublications = publications.length;
+
+			var limiteAffichage, termine;
+
+			if(indexPublication + nbAAfficher > nbPublications) {
+				limiteAffichage = nbPublications;
+				termine = true;
+			}
+			else {
+				limiteAffichage = indexPublication + nbAAfficher;
+				termine = false;
+			}
+
+			var cards = [];
+
+			var texteResume = '';
+
+			var logPublications = '';
+
+			console.log("Début constitution réponse JSON");
+
+			//Message de fin si jamais il n'y a plus de publication à afficher
+			if(termine && (indexPublication >= nbPublications)) {
+				texteResume = "Désolé, je n'ai plus de publications en réserve pour le moment !";
+				logPublications = "N/A";
+			}
+
+			console.log("Boucle sur les publications à rajouter dans le JSON");
+			for (var i = indexPublication; i < limiteAffichage; i++) {
+
+				var card = 
+					{
+						"title": publications[i].titre + " n°" + publications[i].numero,
+						"image_url": publications[i].URL_couv,
+						"subtitle": publications[i].tags,
+						"default_action": {
+							"type": "web_url",
+							"url": publications[i].URL_couv
+						},
+						"buttons":[
+						{
+							"type":"show_block",
+							"block_names":["Sommaire"],
+							"title":"\ud83d\udcdd Sommaire",
+							"set_attributes":
+							{
+								"publication": publications[i].id
+							}
+						},
+						{
+							"type":"show_block",
+							"block_names":["Share"],
+							"title":"\ud83d\udc8c Partager",
+							"set_attributes":
+							{
+								"publication": publications[i].id
+							}
+						}
+						]
+					};
+
+				//Bouton d'achat
+				if(undefined!=publications[i].URL_achat && ""!=publications[i].URL_achat && " "!=publications[i].URL_achat)
+				{
+					card.buttons.push(
+							{
+								"type":"web_url",
+								"url":publications[i].URL_achat,
+								"title":"\ud83d\uded2 Acheter"
+								// "set_attributes":
+								// {
+								// 	"publication": publications[i].id
+								// }
+								//Memo : log du click ?
+							}
+						);
+				}
+
+				cards.push(card);
+
+			}
+
+			var retourArriere = limiteAffichage - nbAAfficher * 2;
+
+			var boutonsNavigation = [];
+			var quickReplies = [];
+
+			boutonsNavigation.push(
+				{
+					"type":"show_block",
+					"block_names":["Menu"],
+					"title":"Menu"
+				}
+			);
+
+			if(retourArriere >= 0)
+			{
+				boutonsNavigation.push(
+					{
+						"type":"show_block",
+						"block_names":["Galerie Chrono"],
+						"title":"\ud83d\udd3c Précédent",
+						"set_attributes":
+						{
+							"indexPublication": retourArriere
+						}
+					}
+				);
+
+				quickReplies.push(
+					{
+						"title": " \ud83d\udd3d Précédent",
+						"block_names": ["Galerie Chrono"],
+						"set_attributes":
+						{
+							"indexPublication": retourArriere
+						}
+					}
+				);
+			}
+
+			if(!termine)
+			{
+				boutonsNavigation.push(
+					{	
+						"type":"show_block",
+						"block_names":["Galerie Chrono"],
+						"title":"\ud83d\udd3d Suivant",
+						"set_attributes":
+						{
+							"indexPublication": limiteAffichage
+						}
+					}
+				);
+
+				quickReplies.push(
+					{
+						"title": " \ud83d\udd3d Suivant",
+						"block_names": ["Galerie Chrono"],
+						"set_attributes":
+						{
+							"indexPublication": limiteAffichage
+						}
+					}
+				);
+			}
+			else
+			{
+				boutonsNavigation.push(
+					{	
+						"type":"show_block",
+						"block_names":["Galerie Chrono"],
+						"title":"\ud83d\udd3c Recommencer",
+						"set_attributes":
+						{
+							"indexPublication": 0
+						}
+					}
+				);
+
+				quickReplies.push(
+					{
+						"title": "Recommencer",
+						"block_names": ["Galerie Chrono"],
+						"set_attributes":
+						{
+							"indexPublication": 0
+						}
+					}
+				);
+			}
+
+			cards.push(
+				{
+					"title": "Navigation",
+					"image_url": "https://res.cloudinary.com/newspayper/image/upload/b_rgb:474747,c_fit,e_shadow,h_970,q_90/b_rgb:00ADEF,c_lpad,h_1125,w_1125/Divers/presse_square-medium.jpg",
+					"subtitle": "Utiliser les options ci-dessous",
+					"buttons" : boutonsNavigation
+				}
+			);
+
+
+			var reponseJSON = {};
+
+			reponseJSON.set_attributes = 
+			{
+				"termine": termine
+			};
+
+			reponseJSON.messages =
+			[
+				{
+							"attachment":{
+							"type":"template",
+							"payload":{
+								"template_type":"generic",
+								"image_aspect_ratio": "square",
+								"elements": cards
+								}
+							}
+							,
 							"quick_replies": quickReplies
 				}
 
@@ -510,25 +820,7 @@ exports.showCardPublication = functions.https.onRequest((request, response) => {
 			// console.log(JSON.stringify(publication));
 			console.log("id publication : " + idPub);
 		
-			var reponseJSON = 	
-			{
-				"messages": [
-				{
-					"attachment":{
-					"type":"template",
-						"payload":{
-							"template_type":"generic",
-							"image_aspect_ratio": "square",
-							"elements":[
-							{
-								"title": publication.titre + " n°" + publication.numero,
-								"image_url": publication.URL_couv,
-								"subtitle": publication.tags,
-								"default_action": {
-									"type": "web_url",
-									"url": publication.URL_couv
-								},
-								"buttons":[
+			var buttons = [
 								{
 									"type":"show_block",
 									"block_names":["Sommaire"],
@@ -547,7 +839,40 @@ exports.showCardPublication = functions.https.onRequest((request, response) => {
 										"publication": idPub
 									}
 								}
-								]
+							  ];
+
+			if(undefined!=publication.URL_achat && ""!=publication.URL_achat && " "!=publication.URL_achat)
+			{
+				buttons.push(
+						{
+							"type":"web_url",
+							"url":publication.URL_achat,
+							"title":"\ud83d\uded2 Acheter"
+						}
+					);
+			}
+
+			//console.log(JSON.stringify(buttons));
+
+			var reponseJSON = 	
+			{
+				"messages": [
+				{
+					"attachment":{
+					"type":"template",
+						"payload":{
+							"template_type":"generic",
+							"image_aspect_ratio": "square",
+							"elements":[
+							{
+								"title": publication.titre + " n°" + publication.numero,
+								"image_url": publication.URL_couv,
+								"subtitle": publication.tags,
+								"default_action": {
+									"type": "web_url",
+									"url": publication.URL_couv
+								},
+								"buttons": buttons
 							}
 							]
 						}
@@ -555,7 +880,7 @@ exports.showCardPublication = functions.https.onRequest((request, response) => {
 				}
 				]
 			};
-			// console.log(JSON.stringify(reponseJSON))
+			console.log(JSON.stringify(reponseJSON))
 			response.json(reponseJSON);
 		}
 
@@ -649,11 +974,12 @@ exports.showSommaire2 = functions.https.onRequest((request, response) => {
 	var refTitre = idPublication.split('_')[0];
 	var ref = titresRef.child(refTitre).child('publications');
 	
-	var query = ref.child(idPublication).child('sommaire');
+	var query = ref.child(idPublication);//.child('sommaire');
 
 	query.once('value').then(function(snapshot) {
 
-		var texteSommaire = snapshot.val();
+		var publication = snapshot.val();
+		var texteSommaire = publication.sommaire;
 
 		if(texteSommaire == undefined || texteSommaire == "" || texteSommaire.length > 2000)
 		{
@@ -662,6 +988,19 @@ exports.showSommaire2 = functions.https.onRequest((request, response) => {
 		}
 		else
 		{
+			var quick_replies = 
+				[
+					{
+						"title": "\ud83d\udcf0 Autres titres"
+					},
+					{
+	                    "title":"\ud83d\udc8c Partager",
+	                    "block_names":[
+	                        "Share"
+	                    ]
+	                }
+				];
+
 			var reponseJSON = 
 			{
 				"messages":[
@@ -670,17 +1009,7 @@ exports.showSommaire2 = functions.https.onRequest((request, response) => {
 					},
 					{
 						"text": texteSommaire,
-						"quick_replies": [
-						{
-							"title": "\ud83d\udcf0 Autres titres"
-						},
-						{
-		                    "title":"\ud83d\udc8c Partager",
-		                    "block_names":[
-		                        "Share"
-		                    ]
-		                }
-						] 
+						"quick_replies": quick_replies
 					
 					}
 				]
@@ -1185,96 +1514,151 @@ exports.showTest = functions.https.onRequest((request, response) => {
 				);
 
 	var JSONtest =
-	{
-
-    "set_attributes":{
-        "termine":false
-    },
-    "messages":[
-        {
-            "attachment":{
-                "type":"template",
-                "payload":{
-                    "template_type":"generic",
-                    "image_aspect_ratio":"square",
-                    "elements":[
-                        {
-                            "title":"Le Journal du Dimanche n°3740",
-                            "image_url":"https://static.milibris.com/thumbnail/issue/a88459f0-595b-491f-9017-f099d453c05f/front/catalog-cover-large.png",
-                            "subtitle":" ont peur",
-                            "default_action":{
-                                "type":"web_url",
-                                "url":"https://static.milibris.com/thumbnail/issue/a88459f0-595b-491f-9017-f099d453c05f/front/catalog-cover-large.png"
-                            },
-                            "buttons":[
-                                {
-                                    "type":"show_block",
-                                    "block_names":[
-                                        "JSON Test 2"
-                                    ],
-                                    "title":"loop"
-                                }
-                            ]
-                        }
-                    ]
+	
+{
+  // "set_attributes": {
+  //   "termine": false
+  // },
+  "messages": [
+    {
+      "attachment": {
+        "type": "template",
+        "payload": {
+          "template_type": "generic",
+          "image_aspect_ratio": "square",
+          "elements": [
+            {
+              "title": "Publications suivantes",
+              "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/330px-Google_2015_logo.svg.png",
+              "subtitle": "Sauv",
+              "default_action": {
+                "type": "show_block",
+                "block_names": [
+                  "Test"
+                ],
+                "title": "🔼",
+                "set_attributes": {
+                  "indexPublication": 8
                 }
-            },
-            "quick_replies":[
+              },
+              "buttons": [
                 {
-                    "title":"Menu",
-                    "block_names":[
-                        "Menu"
-                    ]
-                },
-                {
-                    "title":" 🔽",
-                    "block_names":[
-                        "JSON Test 2"
-                    ],
-                    "set_attributes":{
-                        "indexPublication":4
-                    }
+                  "type": "show_block",
+                  "block_names": [
+                    "Test"
+                  ],
+                  "title": "🔼",
+                  "set_attributes": {
+                    "indexPublication": 8
+                  }
                 }
-            ]
+              ]
+            }
+          ]
         }
-    ]
-
+      }
+      // ,
+      // "quick_replies": [
+      //   {
+      //     "title": "Test",
+      //     "block_names": [
+      //       "Test"
+      //     ]
+      //   }
+      // ]
+    }
+  ]
 };
-
 
 	var JSONtest2 = 
 	{
-		"messages": [
-		{
-					"attachment":{
-					"type":"template",
-						"payload":{
-							"template_type":"generic",
-							"image_aspect_ratio": "square",
-							"elements":[
-							{
-								"title": "Découvrir le publication.titre n° publication.numero avec Newspayper !",
-								"image_url": "https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png",
-								"subtitle": "Cliquer sur l'image pour afficher la publication",
-								"default_action": {
-									"type": "web_url",
-									"url": refLink + "?ref=JSON%20test"
-									// "messenger_extensions": true
-								},
-								"buttons":[
-								{
-									"type":"element_share"
-								}
-								]
-							}
-							]
-						}
-					},
-					"quick_replies": quickReplies
-		}
-	]
-	};
+  "messages": [
+    {
+      "attachment": {
+        "type": "template",
+        "payload": {
+          "template_type": "generic",
+          "image_aspect_ratio": "square",
+          "elements": [
+            {
+              "title": "Le Point n°2408",
+              "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/330px-Google_2015_logo.svg.png",
+              "subtitle": "Sauver la planète ·Génie de la blockchain ·Italie, l’Europe sur un volcan",
+              "default_action": {
+                "type": "web_url",
+                "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/330px-Google_2015_logo.svg.png"
+              },
+              "buttons": [
+                {
+                  "type": "show_block",
+                  "block_names": [
+                    "Sommaire"
+                  ],
+                  "title": "Sommaire",
+                  "set_attributes": {
+                    "publication": "LePoint_2408"
+                  }
+                },
+                {
+                  "type": "show_block",
+                  "block_names": [
+                    "Share"
+                  ],
+                  "title": "💌 Partager",
+                  "set_attributes": {
+                    "publication": "LePoint_2408"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+};
 
-	response.json(JSONtest);
+	var JSONtest3 = 
+	{
+  "messages": [
+    {
+      "attachment": {
+        "type": "template",
+        "payload": {
+          "template_type": "generic",
+          "image_aspect_ratio": "square",
+          "elements": [
+            {
+              "title": "Publivantes",
+              "image_url": "https://res.cloudinary.com/newspayper/image/upload/b_rgb:474747,c_fit,e_shadow,h_970,q_90/b_rgb:FDD400,c_lpad,h_1125,w_1125/lepoint2408.jpg",
+              "subtitle": "soustitre",
+             //  "default_action": {
+             //    "type": "show_block",
+             //    "block_names": [
+             //      "Test"
+             //      ]
+            	// },
+              "buttons": [
+                {
+                  "type": "show_block",
+                  "block_names": [
+                    "Test"
+                  ],
+                  "title": "🔼",
+                  "set_attributes": {
+                    "indexPublication": 0
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+};
+
+	console.log(JSON.stringify(JSONtest3));
+	response.json(JSONtest3);
 
 });
