@@ -28,8 +28,245 @@ const notes = {
 
 
 
-//////////////////////////////////////////// ENDPOINTS CHATBOT ////////////////////////////////////////////
+//////////////////////////////////////////// BIND EVENEMENTS ////////////////////////////////////////////
 
+
+/********* OBSOLETE : Affichage chrono de la liste des publications sous forme de galerie *********/
+exports.showGalerie = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP showGalerie : " + JSON.stringify(request.query) );
+
+	const messengerUserId	= request.query["messenger user id"];
+	const firstName			= request.query["first name"];
+	const lastName			= request.query["last name"];
+
+	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
+
+	console.log("Pré-lecture BDD");
+
+	var lecture = publicationsRef.once('value')
+		.then(function(snapshot) {
+
+			var publications_desordre = snapshot.val();
+
+			console.log("Publications récupérées dans le désordre ; début tri");
+
+			var i = 0;
+			snapshot.forEach(function(childSnapshot) {
+
+				var date_parution = publications_desordre[childSnapshot.key].date_parution;
+				var now = new Date();
+				//Si déjà parue on s'en occupe
+				if(date_parution < now.getTime()) {
+					publications_desordre[childSnapshot.key].id = childSnapshot.key;
+				}
+				else { //Sinon on la retire des publications à afficher
+					delete publications_desordre[childSnapshot.key];
+				}
+				i++;
+			});
+
+			var publications = Object.keys(publications_desordre)
+				.sort(function(a, b) {
+					return publications_desordre[b].date_parution - publications_desordre[a].date_parution; // Organize the category array
+				}).map(function(category) {
+					return publications_desordre[category]; // Convert array of categories to array of objects
+				});
+
+			//console.log("publications sorted : " + JSON.stringify(publications));
+			console.log("Fin tri publications");
+
+			const indexPublicationParam = request.query["indexPublication"];
+
+			var indexPublication = parseInt(indexPublicationParam, 10);
+
+			if( !verifyParam(indexPublication) ) {
+				badRequest(response, "Unable to find request parameter 'indexPublication'.");
+				return;
+			}
+
+			if( isNaN(indexPublication) ) {
+				indexPublication = 0;
+			}
+
+			const nbPublications = publications.length;
+
+			var limiteAffichage, termine;
+
+			if(indexPublication + nbAAfficher > nbPublications) {
+				limiteAffichage = nbPublications;
+				termine = true;
+			}
+			else {
+				limiteAffichage = indexPublication + nbAAfficher;
+				termine = false;
+			}
+
+			var quickReplies = [];
+
+			var cards = [];
+
+			var texteResume = '';
+
+			var logPublications = '';
+
+			console.log("Début constitution réponse JSON");
+			//Insertion des quick replies standard
+			quickReplies.push({"title": "Menu","block_names": ["Menu"]});
+
+			var retourArriere = limiteAffichage - nbAAfficher * 2;
+
+			if(retourArriere >= 0)
+			{
+				quickReplies.push(
+					{
+						"title": " \ud83d\udd3c",
+						"block_names": ["Galerie Chrono"],
+						"set_attributes":
+						{
+							"indexPublication": retourArriere
+						}
+					}
+				);
+			}
+
+			if(!termine)
+			{
+				quickReplies.push(
+					{
+						"title": " \ud83d\udd3d",
+						"block_names": ["Galerie Chrono"],
+						"set_attributes":
+						{
+							"indexPublication": limiteAffichage
+						}
+					}
+				);
+			}
+			else
+			{
+				quickReplies.push(
+					{
+						"title": "Recommencer",
+						"block_names": ["Galerie Chrono"],
+						"set_attributes":
+						{
+							"indexPublication": 0
+						}
+					}
+				);
+			}
+
+			//Message de fin si jamais il n'y a plus de publication à afficher
+			if(termine && (indexPublication >= nbPublications)) {
+				texteResume = "Désolé, je n'ai plus de publications en réserve pour le moment !";
+				logPublications = "N/A";
+			}
+
+			console.log("Boucle sur les publications à rajouter dans le JSON");
+			for (var i = indexPublication; i < limiteAffichage; i++) {
+
+				var card = 
+					{
+						"title": publications[i].titre + " n°" + publications[i].numero,
+						"image_url": publications[i].URL_couv,
+						"subtitle": publications[i].tags,
+						"default_action": {
+							"type": "web_url",
+							"url": publications[i].URL_couv
+						},
+						"buttons":[
+						{
+							"type":"show_block",
+							"block_names":["Sommaire"],
+							"title":"\ud83d\udcdd Sommaire",
+							"set_attributes":
+							{
+								"publication": publications[i].id
+							}
+						},
+						{
+							"type":"show_block",
+							"block_names":["Share"],
+							"title":"\ud83d\udc8c Partager",
+							"set_attributes":
+							{
+								"publication": publications[i].id
+							}
+						}
+						]
+					};
+
+				if(undefined!=publications[i].URL_achat && ""!=publications[i].URL_achat && " "!=publications[i].URL_achat)
+				{
+					card.buttons.push(
+							{
+								"type":"web_url",
+								"url":publications[i].URL_achat,
+								"title":"\ud83d\uded2 Acheter"
+								// "set_attributes":
+								// {
+								// 	"publication": publications[i].id
+								// }
+								//Memo : log du click ?
+							}
+						);
+				}
+
+				cards.push(card);
+
+			}
+
+			
+			var reponseJSON = {};
+
+			reponseJSON.set_attributes = 
+			{
+				"termine": termine
+			};
+
+			reponseJSON.messages =
+			[
+				{
+							"attachment":{
+							"type":"template",
+								"payload":{
+									"template_type":"generic",
+									"image_aspect_ratio": "square",
+									"elements": cards
+									}
+							},
+							"quick_replies": quickReplies
+				}
+
+			];
+
+			console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+
+			//log de l'envoi à l'utilisateur
+			var now = new Date();
+
+			var logs = {};
+
+			logs["timestamp"] = now.getTime();
+			logs["contenu_envoye"] = logPublications;
+
+			var refUser = admin.database().ref('users').child(messengerUserId);
+			
+			var updates = {};
+			updates["nom"] = firstName + " " + lastName;
+			updates["messengerUserId"] = messengerUserId;	
+			updates["/logs/" + now.getTime()] = logs;
+
+			//console.log(JSON.stringify(updates));
+
+			refUser.update(updates)
+				.then(function() {
+					response.json(reponseJSON);
+				});
+
+		});
+});
 
 /********* Affichage chrono de la liste des publications sous forme de galerie *********/
 exports.showGalerie2 = functions.https.onRequest((request, response) => {
@@ -44,7 +281,6 @@ exports.showGalerie2 = functions.https.onRequest((request, response) => {
 
 	console.log("Pré-lecture BDD");
 
-	/*** Lecture de toutes les publications ***/
 	var lecture = publicationsRef.once('value')
 		.then(function(snapshot) {
 
@@ -52,9 +288,9 @@ exports.showGalerie2 = functions.https.onRequest((request, response) => {
 
 			console.log("Publications récupérées dans le désordre ; début tri");
 
-			/*** Retrait des publications qui ne doivent pas être montrées ***/
 			var i = 0;
 			snapshot.forEach(function(childSnapshot) {
+
 				var date_parution = publications_desordre[childSnapshot.key].date_parution;
 				var now = new Date();
 				//Si déjà parue on s'en occupe
@@ -67,31 +303,33 @@ exports.showGalerie2 = functions.https.onRequest((request, response) => {
 				i++;
 			});
 
-			/*** Tri des publications de la plus récente à la plus ancienne ***/
 			var publications = Object.keys(publications_desordre)
 				.sort(function(a, b) {
 					return publications_desordre[b].date_parution - publications_desordre[a].date_parution; // Organize the category array
 				}).map(function(category) {
 					return publications_desordre[category]; // Convert array of categories to array of objects
 				});
+
+			//console.log("publications sorted : " + JSON.stringify(publications));
 			console.log("Fin tri publications");
 
-
-			/*** Gestion de l'index à partir duquel commencer l'affichage ***/
 			const indexPublicationParam = request.query["indexPublication"];
+
 			var indexPublication = parseInt(indexPublicationParam, 10);
+
 			if( !verifyParam(indexPublication) ) {
 				badRequest(response, "Unable to find request parameter 'indexPublication'.");
 				return;
 			}
+
 			if( isNaN(indexPublication) ) {
 				indexPublication = 0;
 			}
 
 			const nbPublications = publications.length;
+
 			var limiteAffichage, termine;
 
-			/*** Détermination de la position de l'user : début, fin, milieu des pages ***/
 			if(indexPublication + nbAAfficher > nbPublications) {
 				limiteAffichage = nbPublications;
 				termine = true;
@@ -102,7 +340,9 @@ exports.showGalerie2 = functions.https.onRequest((request, response) => {
 			}
 
 			var cards = [];
+
 			var texteResume = '';
+
 			var logPublications = '';
 
 			console.log("Début constitution réponse JSON");
@@ -197,7 +437,7 @@ exports.showGalerie2 = functions.https.onRequest((request, response) => {
 
 				quickReplies.push(
 					{
-						"title": " \ud83d\udd3c Précédent",
+						"title": " \ud83d\udd3d Précédent",
 						"block_names": ["Galerie Chrono"],
 						"set_attributes":
 						{
@@ -525,6 +765,84 @@ exports.shareCardPublication = functions.https.onRequest((request, response) => 
 	});
 });
 
+/********* OBSOLETE : Affichage du sommaire d'une publication *********/
+exports.showSommaire = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP showSommaire : " + JSON.stringify(request.query) );
+
+	const BDD_chatbot = admin.database();
+
+	//recup infos user pour log
+	const messengerUserId	= request.query["messenger user id"];
+
+	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
+
+
+	const listePublications = BDD_chatbot.ref("publications");
+
+	const idPublication = request.query["publication"];
+
+	if( !verifyParam(idPublication) ) {
+		badRequest(response, "Unable to find request parameter 'publication'.");
+		return;
+	}
+
+	var lecture = listePublications.child(idPublication).once('value')
+		.then(function(snapshot) {
+
+		var publication = snapshot.val();
+
+		var texteSommaire = publication.sommaire;
+
+		if(texteSommaire == undefined || texteSommaire == "" || texteSommaire.length > 2000)
+		{
+			console.log("Pas de sommaire à afficher");
+			response.end();
+		}
+		else
+		{
+			var reponseJSON = 
+			{
+				"messages":[
+					{
+						"text": "Voici le sommaire :"
+					},
+					{
+						"text": texteSommaire
+					}
+				]
+			};
+
+			console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+
+			//log de l'envoi à l'utilisateur
+			var now = new Date();
+
+			var logs = {};
+
+			logs["timestamp"] = now.getTime();
+			logs["idPublication"] = idPublication;
+			logs["contenu_envoye"] = "sommaire";
+
+			var refUser = admin.database().ref('users').child(messengerUserId);
+			
+			var updates = {};
+			updates["messengerUserId"] = messengerUserId;	
+			updates["/logs/" + now.getTime()] = logs;
+
+			console.log("updates : " + JSON.stringify(updates));
+
+			refUser.update(updates)
+				.then(function() {
+					console.log("envoi réponse JSON");
+					response.json(reponseJSON);
+				});
+		}
+
+		
+	});
+});
+
 /********* Affichage du sommaire d'une publication *********/
 exports.showSommaire2 = functions.https.onRequest((request, response) => {
 
@@ -607,6 +925,45 @@ exports.showSommaire2 = functions.https.onRequest((request, response) => {
 		}
 		
 	});
+});
+
+/********* OBSOLETE ? : Enregistrement des choix d'abonnement utilisateur *********/
+exports.modifierAbonnement = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP modifierAbonnement : " + JSON.stringify(request.body) );
+
+	const messengerUserId	= request.body["messenger user id"];
+
+	const firstName			= request.body["first name"];
+
+	const lastName			= request.body["last name"];
+
+	const abonnement 		= request.body["abonnement"];
+
+
+	if( !verifyParam(messengerUserId) ) {
+				badRequest(response, "Unable to find request parameter 'messengerUserId'.");
+				return;
+	}
+	//if( !verifyParam(firstName) ) {badRequest(response, "Unable to find request parameter 'firstName'.");return;}
+	//if( !verifyParam(lastName) ) {badRequest(response, "Unable to find request parameter 'lastName'.");return;}
+	if( !verifyParam(abonnement) ) {
+				badRequest(response, "Unable to find request parameter 'abonnement'.");
+				return;
+	}
+
+	var refUser = admin.database().ref('users').child(messengerUserId);
+	
+	var updates = {};
+	updates["nom"] = firstName + " " + lastName;
+	updates["messengerUserId"] = messengerUserId;	
+	updates["abonne"] = abonnement;
+
+
+	refUser.update(updates)
+		.then(function() {
+			response.end();
+		});
 });
 
 /********* Enregistrement des messages utilisateurs envoyés dans bloc spécifique *********/
@@ -711,64 +1068,325 @@ exports.logAction = functions.https.onRequest((request, response) => {
 		});
 });
 
+/********* OBSOLETE : Enregistrement note utilisateur sur publication *********/
+exports.enregistrerAvisPublication = functions.https.onRequest((request, response) => {
 
-//////////////////////////////////////////// ENDPOINTS AUTRES ////////////////////////////////////////////
+	console.log("chatbotNPP enregistrerAvisPublication : " + JSON.stringify(request.body) );
 
-exports.updateFromCloudinary = functions.https.onRequest((request, response) => {
+	const messengerUserId	= request.body["messenger user id"];
 
-	console.log("updateFromCloudinary : " + JSON.stringify(request.body) );
+	const firstName			= request.body["first name"];
 
-	const url_image			= request.body["url_image"];
+	const lastName			= request.body["last name"];
 
-	const id_image			= request.body["id_image"];
+	const userAnswer 		= request.body["userAnswer"];
 
+	const idPublication		= request.body["publication"];
 
-	if( !verifyParam(url_image) ) {
-				badRequest(response, "Unable to find request parameter 'url_image'.");
+	if( !verifyParam(messengerUserId) ) {
+				badRequest(response, "Unable to find request parameter 'messengerUserId'.");
 				return;
 	}
-	if( !verifyParam(id_image) ) {
-				badRequest(response, "Unable to find request parameter 'id_image'.");
+	//if( !verifyParam(firstName) ) {badRequest(response, "Unable to find request parameter 'firstName'.");return;}
+	//if( !verifyParam(lastName) ) {badRequest(response, "Unable to find request parameter 'lastName'.");return;}
+	if( !verifyParam(userAnswer) ) {
+				badRequest(response, "Unable to find request parameter 'userAnswer'.");
+				return;
+	}
+	if( !verifyParam(idPublication) ) {
+				badRequest(response, "Unable to find request parameter 'publication'.");
 				return;
 	}
 
 
-	var publication = {
-		"URL_couv" : url_image
-	};
+	var reponse = {};
+
+	reponse["note"] = notes[userAnswer.codePointAt(0)];
+	reponse["publicationId"] = idPublication;
+
+	var refUser = admin.database().ref('users').child(messengerUserId);
+	
+	var updates = {};
+	updates["nom"] = firstName + " " + lastName;
+	updates["messengerUserId"] = messengerUserId;	
+	updates["/avisPublications/" + idPublication] = reponse;
 
 
-	var titre = id_image.split('_')[0];
-	var refTitre = titresRef.child(titre).child('publications').child(id_image);
+	refUser.update(updates)
+		.then(function() {
+			response.end();
+		});
+});
 
-	var refPublication = publicationsRef.child(id_image);
+/********* OBSOLETE : Affichage chrono de la liste des publications sous forme de texte *********/
+exports.showPublications = functions.https.onRequest((request, response) => {
 
-	if(undefined!==id_image.split('_')[1]) {
+	console.log("chatbotNPP showPublications : " + JSON.stringify(request.query) );
 
-		refTitre.once('value').then(function(snapshot) {
-			
-			console.log(snapshot.val());
-			console.log(JSON.stringify(snapshot.val()));
-			if(null!==snapshot.val()) {
-				refTitre.update(publication).then(function() {
-					console.log("Titre mis à jour");
-					refPublication.update(publication).then(function() {
-						console.log("Publication mise à jour");
-						response.end();
-					});
+	const BDD_chatbot = admin.database().ref();
+
+	const messengerUserId	= request.query["messenger user id"];
+	const firstName			= request.query["first name"];
+	const lastName			= request.query["last name"];
+
+	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
+	//if(!verifyParam(firstName)) {badRequest(response, "Unable to find request parameter 'firstName'.");return;}
+	//if(!verifyParam(lastName)) {badRequest(response, "Unable to find request parameter 'lastName'.");return;}
+
+	console.log("Pré-lecture BDD");
+	var lecture = BDD_chatbot.child('publications').once('value')
+		.then(function(snapshot) {
+
+			var publications_desordre = snapshot.val();
+
+			console.log("Publications récupérées dans le désordre ; début tri");
+
+			var i = 0;
+			snapshot.forEach(function(childSnapshot) {
+
+				var date_parution = publications_desordre[childSnapshot.key].date_parution;
+				var now = new Date();
+
+				//Si déjà parue on s'en occupe
+				if(date_parution < now.getTime()) {
+					publications_desordre[childSnapshot.key].id = childSnapshot.key;
+				}
+				else { //Sinon on la retire des publications à afficher
+					delete publications_desordre[childSnapshot.key];
+				}
+				i++;
+			});
+
+			var publications = Object.keys(publications_desordre)
+				.sort(function(a, b) {
+					return publications_desordre[b].date_parution - publications_desordre[a].date_parution; // Organize the category array
+				}).map(function(category) {
+					return publications_desordre[category]; // Convert array of categories to array of objects
 				});
+
+			console.log("Fin tri publications");
+
+			const indexPublicationParam = request.query["indexPublication"];
+
+			var indexPublication = parseInt(indexPublicationParam, 10);
+
+			if( !verifyParam(indexPublication) ) {
+				badRequest(response, "Unable to find request parameter 'indexPublication'.");
+				return;
+			}
+
+			if( isNaN(indexPublication) ) {
+				indexPublication = 0;
+			}
+
+			const nbPublications = publications.length;
+
+			var limiteAffichage, termine;
+
+			if(indexPublication + nbAAfficher > nbPublications) {
+				limiteAffichage = nbPublications;
+				termine = true;
 			}
 			else {
-				console.log("Impossible de retrouver le titre dans la BDD. Abandon de l'update.");
-				response.end();
+				limiteAffichage = indexPublication + nbAAfficher;
+				termine = false;
 			}
+
+			var quickReplies = [];
+
+			var texteResume = '';
+
+			var logPublications = '';
+
+			console.log("Début constitution réponse JSON");
+			//Insertion des quick replies standard
+			quickReplies.push({"title": "Menu","block_names": ["Menu"]});
+
+			var retourArriere = limiteAffichage - nbAAfficher * 2;
+
+			if(retourArriere >= 0)
+			{
+				quickReplies.push(
+					{
+						"title": " \ud83d\udd3c",
+						"block_names": ["Montre Publications"],
+						"set_attributes":
+						{
+							"indexPublication": retourArriere
+						}
+					}
+				);
+			}
+
+			if(!termine)
+			{
+				quickReplies.push(
+					{
+						"title": " \ud83d\udd3d",
+						"block_names": ["Montre Publications"],
+						"set_attributes":
+						{
+							"indexPublication": limiteAffichage
+						}
+					}
+				);
+			}
+			else
+			{
+				quickReplies.push(
+					{
+						"title": "Recommencer",
+						"block_names": ["Montre Publications"],
+						"set_attributes":
+						{
+							"indexPublication": 0
+						}
+					}
+				);
+			}
+
+			//Message de fin si jamais il n'y a plus de publication à afficher
+			if(termine && (indexPublication >= nbPublications)) {
+				texteResume = "Désolé, je n'ai plus de publications en réserve pour le moment !";
+				logPublications = "N/A";
+			}
+
+			for (var i = indexPublication; i < limiteAffichage; i++) {
+
+				texteResume += majusculify(publications[i]['titre']) + '\u000A' + publications[i]['tags'] + '\u000A' + '\u000A';
+				logPublications += publications[i].id + ',';
+
+				quickReplies.push(
+					{
+						"title": publications[i]['titre_short'],
+						"block_names": ["Montre Details"],
+						"set_attributes":
+						{
+							"publication": publications[i].id,
+						}
+					}
+				);
+			}
+
+			var reponseJSON = {};
+
+			reponseJSON.set_attributes = 
+			{
+				"termine": termine
+			};
+
+			reponseJSON.messages =
+			[
+				{
+					"text": texteResume,
+					"quick_replies": quickReplies
+				}
+			];
+
+			console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+
+			//log de l'envoi à l'utilisateur
+			var now = new Date();
+
+			var logs = {};
+
+			logs["timestamp"] = now.getTime();
+			logs["contenu_envoye"] = logPublications;
+
+			var refUser = admin.database().ref('users').child(messengerUserId);
+			
+			var updates = {};
+			updates["nom"] = firstName + " " + lastName;
+			updates["messengerUserId"] = messengerUserId;	
+			updates["/logs/" + now.getTime()] = logs;
+
+			refUser.update(updates)
+				.then(function() {
+					response.json(reponseJSON);
+				});
+
 		});
-	}
-	else {
-		console.log("Le format de l'id ne correspond pas à ce qui est attendu. Abandon de l'update.");
-		response.end();
-	}
 });
+
+/********* NON UTILISE : Affichage de la couverture d'une publication *********/
+exports.showCouverture = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP showCouverture : " + JSON.stringify(request.query) );
+
+	const BDD_chatbot = admin.database();
+
+	//recup infos user pour log
+	const messengerUserId	= request.query["messenger user id"];
+
+	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
+
+
+	const listePublications = BDD_chatbot.ref("publications");
+
+	const idPublication = request.query["publication"];
+
+	if( !verifyParam(idPublication) ) {
+		badRequest(response, "Unable to find request parameter 'publication'.");
+		return;
+	}
+
+	var lecture = listePublications.child(idPublication).once('value')
+		.then(function(snapshot) {
+
+		var publication = snapshot.val();
+
+		var urlCouverture = publication.URL_couv;
+
+		var reponseJSON = 
+		{
+			"messages": [
+				{
+					"attachment":
+					{
+						"type": "image",
+						"payload": 
+						{
+							"url": urlCouverture
+						}
+					},
+					"quick_replies": [
+						{
+							"title": "OK"
+						}
+					]
+				}
+			]
+		};
+
+		console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+
+		//log de l'envoi à l'utilisateur
+		var now = new Date();
+
+		var logs = {};
+
+		logs["timestamp"] = now.getTime();
+		logs["idPublication"] = idPublication;
+		logs["contenu_envoye"] = "couverture";
+
+
+		var refUser = admin.database().ref('users').child(messengerUserId);
+		
+		var updates = {};
+		updates["messengerUserId"] = messengerUserId;	
+		updates["/logs/" + now.getTime()] = logs;
+
+		console.log("updates : " + JSON.stringify(updates));
+
+		refUser.update(updates)
+			.then(function() {
+				console.log("envoi réponse JSON");
+				response.json(reponseJSON);
+			});
+
+	});
+});
+
 
 //////////////////////////////////////////// FONCTIONS ////////////////////////////////////////////
 
