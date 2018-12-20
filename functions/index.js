@@ -319,26 +319,59 @@ exports.showGalerie2 = functions.https.onRequest((request, response) => {
 		});
 });
 
-/********* Traitement des paramètres REF pour navigation *********/
-exports.refParser = functions.https.onRequest((request, response) => {
+/********* Traitement des paramètres REF pour affichage publication *********/
+exports.refParserPublication = functions.https.onRequest((request, response) => {
 	
 	console.log("chatbotNPP refParser : " + JSON.stringify(request.query) );
 
-	const messengerUserId	= request.query["messenger user id"];
-	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
 	const ref	= request.query["ref"];
-	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'ref'.");return;}
+	if(!verifyParam(ref)) {badRequest(response, "Unable to find request parameter 'ref'.");return;}
 
-	var publication = ref.split("|")[1];
+	var splitRef = ref.split("|");
+	var friendUserId = splitRef[2];
+	var friendFirstName = splitRef[3];
+	var friendLastName = splitRef[4];
+
+	var publication = splitRef[1];
 
 	var reponseJSON = 
 	{
 		"set_attributes": {
-			"publication": publication
+			"publication": publication,
+			"friendUserId": friendUserId,
+			"friendFirstName": friendFirstName,
+			"friendLastName": friendLastName
 		}
 	};
 
 	// console.log(JSON.stringify(reponseJSON));
+	response.json(reponseJSON);
+});
+
+/********* Traitement des paramètres REF pour démarrage conversation *********/
+exports.refParserChatbot = functions.https.onRequest((request, response) => {
+	
+	console.log("chatbotNPP refParser : " + JSON.stringify(request.query) );
+
+	const ref	= request.query["ref"];
+	if(!verifyParam(ref)) {badRequest(response, "Unable to find request parameter 'ref'.");return;}
+
+
+	var splitRef = ref.split("|");
+	var friendUserId = splitRef[1];
+	var friendFirstName = splitRef[2];
+	var friendLastName = splitRef[3];
+
+	var reponseJSON = 
+	{
+		"set_attributes": {
+			"friendUserId": friendUserId,
+			"friendFirstName": friendFirstName,
+			"friendLastName": friendLastName
+		}
+	};
+
+	//console.log(JSON.stringify(reponseJSON));
 	response.json(reponseJSON);
 });
 
@@ -479,10 +512,7 @@ exports.shareCardPublication = functions.https.onRequest((request, response) => 
 		}
 		else {
 
-			var publication = snapshot.val(); 
-			// console.log(JSON.stringify(publication));
-			// console.log("id publication : " + idPublication);
-		
+			var publication = snapshot.val(); 	
 			var reponseJSON = 	
 			{
 				"messages": [
@@ -500,11 +530,13 @@ exports.shareCardPublication = functions.https.onRequest((request, response) => 
 								"default_action": {
 									"type": "web_url",
 									"url": refLink + "?ref=sharedPublication%7C" + idPublication
+											+ "%7C" + messengerUserId + "%7C" + firstName + "%7C" + lastName
               					},
 								"buttons":[
 								{
 									"type": "web_url",
-									"url": refLink + "?ref=sharedPublication%7C" + idPublication,
+									"url": refLink + "?ref=sharedPublication%7C" + idPublication
+											+ "%7C" + messengerUserId + "%7C" + firstName + "%7C" + lastName,
 									"title": "\ud83d\udd0e Voir les détails"
 								},
 								{
@@ -523,6 +555,59 @@ exports.shareCardPublication = functions.https.onRequest((request, response) => 
 		}
 
 	});
+});
+
+/********* Affichage d'une carte de partage du chatbot *********/
+exports.shareChatbot = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP showShareCardPublication : " + JSON.stringify(request.query) );
+
+	const messengerUserId	= request.query["messenger user id"];
+	if(!verifyParam(messengerUserId)) {badRequest(response, "Unable to find request parameter 'messengerUserId'.");return;}
+	const firstName = request.query["first name"];
+	if(!verifyParam(messengerUserId)) {console.log("Impossible de récupérer l'attribut 'first name'");}
+	const lastName = request.query["last name"];
+	if(!verifyParam(messengerUserId)) {console.log("Impossible de récupérer l'attribut 'last name'");}
+		
+	var reponseJSON = 	
+	{
+		"messages": [
+		{
+			"attachment":{
+			"type":"template",
+				"payload":{
+					"template_type":"generic",
+					"image_aspect_ratio": "square",
+					"elements":[
+					{
+						"title": "Revue de presse sur Messenger ! 💬📰",
+						"image_url": "https://res.cloudinary.com/newspayper/image/upload/v1540985351/Divers/presse_square-small.jpg",
+						"subtitle": "Discute avec Newspayper et découvre le meilleur de la presse ! 👇",
+						"default_action": {
+							"type": "web_url",
+							"url": refLink + "?ref=sharedChatbot%7C" + messengerUserId + "%7C" + firstName + "%7C" + lastName
+      					},
+						"buttons":[
+						{
+							"type": "web_url",
+							"url": refLink + "?ref=sharedChatbot%7C" + messengerUserId + "%7C" + firstName + "%7C" + lastName,
+							"title": "Je veux essayer 🔥"
+						},
+						{
+							"type":"element_share"
+						}
+						]
+					}
+					]
+				}
+			}
+		}
+		]
+	};
+
+	console.log(JSON.stringify(reponseJSON));
+	response.json(reponseJSON);
+
 });
 
 /********* Affichage du sommaire d'une publication *********/
@@ -678,6 +763,7 @@ exports.logAction = functions.https.onRequest((request, response) => {
 
 	response.end();
 
+	/*
 	console.log("chatbotNPP logAction : " + JSON.stringify(request.body) );
 
 	const messengerUserId	= request.body["messenger user id"];
@@ -708,7 +794,7 @@ exports.logAction = functions.https.onRequest((request, response) => {
 	refUser.update(updates)
 		.then(function() {
 			response.end();
-		});
+		});*/
 });
 
 
@@ -895,150 +981,131 @@ exports.showTest = functions.https.onRequest((request, response) => {
 
 	var JSONtest =
 	
-{
-  // "set_attributes": {
-  //   "termine": false
-  // },
-  "messages": [
-    {
-      "attachment": {
-        "type": "template",
-        "payload": {
-          "template_type": "generic",
-          "image_aspect_ratio": "square",
-          "elements": [
-            {
-              "title": "Publications suivantes",
-              "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/330px-Google_2015_logo.svg.png",
-              "subtitle": "Sauv",
-              "default_action": {
-                "type": "show_block",
-                "block_names": [
-                  "Test"
-                ],
-                "title": "🔼",
-                "set_attributes": {
-                  "indexPublication": 8
-                }
-              },
-              "buttons": [
-                {
-                  "type": "show_block",
-                  "block_names": [
-                    "Test"
-                  ],
-                  "title": "🔼",
-                  "set_attributes": {
-                    "indexPublication": 8
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      }
-      // ,
-      // "quick_replies": [
-      //   {
-      //     "title": "Test",
-      //     "block_names": [
-      //       "Test"
-      //     ]
-      //   }
-      // ]
-    }
-  ]
-};
+	{
+	  "messages": [
+	    {
+	      "attachment": {
+	        "type": "template",
+	        "payload": {
+	          "template_type": "generic",
+	          "image_aspect_ratio": "square",
+	          "elements": [
+	            {
+	              "title": "Publications suivantes",
+	              "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/330px-Google_2015_logo.svg.png",
+	              "subtitle": "Sauv",
+	              "default_action": {
+	                "type": "show_block",
+	                "block_names": [
+	                  "Test"
+	                ],
+	                "title": "🔼",
+	                "set_attributes": {
+	                  "indexPublication": 8
+	                }
+	              },
+	              "buttons": [
+	                {
+	                  "type": "show_block",
+	                  "block_names": [
+	                    "Test"
+	                  ],
+	                  "title": "🔼",
+	                  "set_attributes": {
+	                    "indexPublication": 8
+	                  }
+	                }
+	              ]
+	            }
+	          ]
+	        }
+	      }
+	    }
+	  ]
+	};
 
 	var JSONtest2 = 
-	{
-  "messages": [
-    {
-      "attachment": {
-        "type": "template",
-        "payload": {
-          "template_type": "generic",
-          "image_aspect_ratio": "square",
-          "elements": [
-            {
-              "title": "Le Point n°2408",
-              "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/330px-Google_2015_logo.svg.png",
-              "subtitle": "Sauver la planète ·Génie de la blockchain ·Italie, l’Europe sur un volcan",
-              "default_action": {
-                "type": "web_url",
-                "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/330px-Google_2015_logo.svg.png"
-              },
-              "buttons": [
-                {
-                  "type": "show_block",
-                  "block_names": [
-                    "Sommaire"
-                  ],
-                  "title": "Sommaire",
-                  "set_attributes": {
-                    "publication": "LePoint_2408"
-                  }
-                },
-                {
-                  "type": "show_block",
-                  "block_names": [
-                    "Share"
-                  ],
-                  "title": "💌 Partager",
-                  "set_attributes": {
-                    "publication": "LePoint_2408"
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      }
-    }
-  ]
-};
+		{
+	  	"messages": [
+	    {
+	      "attachment": {
+	        "type": "template",
+	        "payload": {
+	          "template_type": "generic",
+	          "image_aspect_ratio": "square",
+	          "elements": [
+	            {
+	              "title": "Le Point n°2408",
+	              "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/330px-Google_2015_logo.svg.png",
+	              "subtitle": "Sauver la planète ·Génie de la blockchain ·Italie, l’Europe sur un volcan",
+	              "default_action": {
+	                "type": "web_url",
+	                "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/330px-Google_2015_logo.svg.png"
+	              },
+	              "buttons": [
+	                {
+	                  "type": "show_block",
+	                  "block_names": [
+	                    "Sommaire"
+	                  ],
+	                  "title": "Sommaire",
+	                  "set_attributes": {
+	                    "publication": "LePoint_2408"
+	                  }
+	                },
+	                {
+	                  "type": "show_block",
+	                  "block_names": [
+	                    "Share"
+	                  ],
+	                  "title": "💌 Partager",
+	                  "set_attributes": {
+	                    "publication": "LePoint_2408"
+	                  }
+	                }
+	              ]
+	            }
+	          ]
+	        }
+	      }
+	    }
+	  ]
+	};
 
 	var JSONtest3 = 
 	{
-  "messages": [
-    {
-      "attachment": {
-        "type": "template",
-        "payload": {
-          "template_type": "generic",
-          "image_aspect_ratio": "square",
-          "elements": [
-            {
-              "title": "Publivantes",
-              "image_url": "https://res.cloudinary.com/newspayper/image/upload/b_rgb:474747,c_fit,e_shadow,h_970,q_90/b_rgb:FDD400,c_lpad,h_1125,w_1125/lepoint2408.jpg",
-              "subtitle": "soustitre",
-             //  "default_action": {
-             //    "type": "show_block",
-             //    "block_names": [
-             //      "Test"
-             //      ]
-            	// },
-              "buttons": [
-                {
-                  "type": "show_block",
-                  "block_names": [
-                    "Test"
-                  ],
-                  "title": "🔼",
-                  "set_attributes": {
-                    "indexPublication": 0
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      }
-    }
-  ]
-};
+	  "messages": [
+	    {
+	      "attachment": {
+	        "type": "template",
+	        "payload": {
+	          "template_type": "generic",
+	          "image_aspect_ratio": "square",
+	          "elements": [
+	            {
+	              "title": "Publivantes",
+	              "image_url": "https://res.cloudinary.com/newspayper/image/upload/b_rgb:474747,c_fit,e_shadow,h_970,q_90/b_rgb:FDD400,c_lpad,h_1125,w_1125/lepoint2408.jpg",
+	              "subtitle": "soustitre",
+	              "buttons": [
+	                {
+	                  "type": "show_block",
+	                  "block_names": [
+	                    "Test"
+	                  ],
+	                  "title": "🔼",
+	                  "set_attributes": {
+	                    "indexPublication": 0
+	                  }
+	                }
+	              ]
+	            }
+	          ]
+	        }
+	      }
+	    }
+	  ]
+	};
 
 	console.log(JSON.stringify(JSONtest3));
 	response.json(JSONtest3);
-
 });
