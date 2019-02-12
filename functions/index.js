@@ -1,6 +1,7 @@
 
 //////////////////////////////////////////// INITIALISATIONS ////////////////////////////////////////////
 
+/*** Firebase ***/
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
@@ -26,6 +27,13 @@ const notes = {
 }
 
 
+/*** Cloudinary ***/
+var cloudinary = require('cloudinary');
+cloudinary.config({
+	cloud_name: 'newspayper',
+	api_key: '783586382762585',
+	api_secret: 'bkl13723ppl4FDuf4roxeLPMlyU'
+});
 
 
 //////////////////////////////////////////// ENDPOINTS CHATBOT ////////////////////////////////////////////
@@ -138,7 +146,7 @@ exports.showGalerie2 = functions.https.onRequest((request, response) => {
 						{
 							"type":"show_block",
 							"block_names":["Share"],
-							"title":"\ud83d\udc8c Partager",
+							"title":"\ud83d\udc8c Envoyer à un ami",
 							"set_attributes":
 							{
 								"publication": publications[i].id
@@ -431,7 +439,7 @@ exports.showCardPublication = functions.https.onRequest((request, response) => {
 								{
 									"type":"show_block",
 									"block_names":["Share"],
-									"title":"\ud83d\udc8c Partager",
+									"title":"\ud83d\udc8c Envoyer à un ami",
 									"set_attributes":
 									{
 										"publication": idPub
@@ -798,16 +806,16 @@ exports.logAction = functions.https.onRequest((request, response) => {
 });
 
 
-//////////////////////////////////////////// ENDPOINTS AUTRES ////////////////////////////////////////////
+//////////////////////////////////////////// ENDPOINTS CLOUDINARY ////////////////////////////////////////////
 
+/********* Récupération du webhook envoyé par Cloudinary pour update de la BDD *********/
 exports.updateFromCloudinary = functions.https.onRequest((request, response) => {
 
 	console.log("updateFromCloudinary : " + JSON.stringify(request.body) );
 
-	const url_image			= request.body["url_image"];
-
-	const id_image			= request.body["id_image"];
-
+	var url_image			= request.body["secure_url"];
+	const id_image			= request.body["public_id"];
+	const colors			= request.body["colors"];
 
 	if( !verifyParam(url_image) ) {
 				badRequest(response, "Unable to find request parameter 'url_image'.");
@@ -818,6 +826,18 @@ exports.updateFromCloudinary = functions.https.onRequest((request, response) => 
 				return;
 	}
 
+	if(undefined!=colors[1]) {
+		
+		couleur = colors[1][0];
+
+		var URL_couv = url_image.split('/');
+
+        url_image  = "https://res.cloudinary.com/newspayper/image/upload/";
+        url_image += "b_rgb:474747,c_fit,e_shadow,h_970,q_90/b_rgb:";
+        url_image += couleur.substr(1);
+        url_image += ",c_lpad,h_1125,w_1125/";
+        url_image += URL_couv[URL_couv.length - 1];
+	}
 
 	var publication = {
 		"URL_couv" : url_image
@@ -826,8 +846,10 @@ exports.updateFromCloudinary = functions.https.onRequest((request, response) => 
 
 	var titre = id_image.split('_')[0];
 	var refTitre = titresRef.child(titre).child('publications').child(id_image);
-
 	var refPublication = publicationsRef.child(id_image);
+
+	console.log("url_image : " + url_image);
+	console.log("id_image : " + id_image)
 
 	if(undefined!==id_image.split('_')[1]) {
 
@@ -855,6 +877,36 @@ exports.updateFromCloudinary = functions.https.onRequest((request, response) => 
 		response.end();
 	}
 });
+
+/********* Upload de l'image dans la BDD *********/
+exports.uploadToCloudinary = functions.https.onRequest((request, response) => {
+
+	console.log("uploadToCloudinary : " + JSON.stringify(request.body) );
+
+	const url_image			= request.body["url_image"];
+	const id_image			= request.body["id_image"];
+
+	if( !verifyParam(url_image) ) {
+				badRequest(response, "Unable to find request parameter 'url_image'.");
+				return;
+	}
+	if( !verifyParam(id_image) ) {
+				badRequest(response, "Unable to find request parameter 'id_image'.");
+				return;
+	}
+
+	cloudinary.v2.uploader.upload(url_image, 
+	  {resource_type: "image", public_id: id_image, colors: "true",
+	  notification_url: "https://us-central1-chatbot-npp.cloudfunctions.net/updateFromCloudinary"
+	  },
+	  function(error, result) {
+	  	console.log("result :" + JSON.stringify(result), "error :" + JSON.stringify(error));
+	  	response.status(200).json({ "message": "Tout s'est bien passé" });
+	  }
+	);
+
+});
+
 
 //////////////////////////////////////////// FONCTIONS ////////////////////////////////////////////
 
@@ -1073,38 +1125,7 @@ exports.showTest = functions.https.onRequest((request, response) => {
 	};
 
 	var JSONtest3 = 
-	{
-	  "messages": [
-	    {
-	      "attachment": {
-	        "type": "template",
-	        "payload": {
-	          "template_type": "generic",
-	          "image_aspect_ratio": "square",
-	          "elements": [
-	            {
-	              "title": "Publivantes",
-	              "image_url": "https://res.cloudinary.com/newspayper/image/upload/b_rgb:474747,c_fit,e_shadow,h_970,q_90/b_rgb:FDD400,c_lpad,h_1125,w_1125/lepoint2408.jpg",
-	              "subtitle": "soustitre",
-	              "buttons": [
-	                {
-	                  "type": "show_block",
-	                  "block_names": [
-	                    "Test"
-	                  ],
-	                  "title": "🔼",
-	                  "set_attributes": {
-	                    "indexPublication": 0
-	                  }
-	                }
-	              ]
-	            }
-	          ]
-	        }
-	      }
-	    }
-	  ]
-	};
+	{"messages":[{"attachment":{"type":"template","payload":{"template_type":"generic","image_aspect_ratio":"square","elements":[{"title":"Welcome!","subtitle":"Choose your preferences","buttons":[{"type":"web_url","url":"http://webviews-dev.us-east-2.elasticbeanstalk.com/testWebview/dynamic-webview?userId=CCCCCCC&blockName=AfterSubmit","title":"Webview (compact)","messenger_extensions":true,"webview_height_ratio":"compact"},{"type":"web_url","url":"http://webviews-dev.us-east-2.elasticbeanstalk.com/testWebview/dynamic-webview?userId=CCCCCCC&blockName=AfterSubmit","title":"Webview (tall)","messenger_extensions":true,"webview_height_ratio":"tall"},{"type":"web_url","url":"http://webviews-dev.us-east-2.elasticbeanstalk.com/testWebview/dynamic-webview?userId=CCCCCCC&blockName=AfterSubmit","title":"Webview (full)","messenger_extensions":true,"webview_height_ratio":"full"}]}]}}}]};
 
 	console.log(JSON.stringify(JSONtest3));
 	response.json(JSONtest3);

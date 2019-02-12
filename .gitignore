@@ -7,3 +7,5 @@ functions/node_modules
 functions/etc
 functions/package.json
 functions/package-lock.json
+node_modules
+package-lock.json
