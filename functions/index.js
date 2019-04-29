@@ -10,6 +10,7 @@ admin.initializeApp(functions.config().firebase);
 
 var publicationsRef = admin.database().ref().child("publications");
 var titresRef = admin.database().ref().child("titres");
+var usersRef = admin.database().ref().child("users");
 
 
 // const refLink = "https://m.me/821278971407519"; //Chatbot de test
@@ -163,11 +164,6 @@ exports.showGalerie2 = functions.https.onRequest((request, response) => {
 								"type":"web_url",
 								"url":publications[i].URL_achat,
 								"title":"\ud83d\uded2 Acheter"
-								// "set_attributes":
-								// {
-								// 	"publication": publications[i].id
-								// }
-								//Memo : log du click ?
 							}
 						);
 				}
@@ -186,6 +182,17 @@ exports.showGalerie2 = functions.https.onRequest((request, response) => {
 					"type":"show_block",
 					"block_names":["Menu"],
 					"title":"Menu"
+				}
+			);
+
+			quickReplies.push(
+				{
+					"title": "📋 Menu",
+					"block_names": ["Menu"],
+					"set_attributes":
+					{
+						"indexPublication": 0
+					}
 				}
 			);
 
@@ -302,29 +309,634 @@ exports.showGalerie2 = functions.https.onRequest((request, response) => {
 
 			console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
 
-			//log de l'envoi à l'utilisateur
-			var now = new Date();
-
-			var logs = {};
-
-			logs["timestamp"] = now.getTime();
-			logs["contenu_envoye"] = logPublications;
-
-			var refUser = admin.database().ref('users').child(messengerUserId);
-			
-			var updates = {};
-			updates["nom"] = firstName + " " + lastName;
-			updates["messengerUserId"] = messengerUserId;	
-			updates["/logs/" + now.getTime()] = logs;
-
-			//console.log(JSON.stringify(updates));
-
-			refUser.update(updates)
-				.then(function() {
-					response.json(reponseJSON);
-				});
-
+			response.json(reponseJSON);
 		});
+});
+
+/********* Affichage chrono de la liste des publications favorites d'un user sous forme de galerie *********/
+exports.showGalerieFav = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP showGalerieFav : " + JSON.stringify(request.query) );
+
+	const muid = request.query["messenger user id"];
+	if(!verifyParam(muid)) {badRequest(response, "Unable to find request parameter 'messenger user id'.");return;}
+
+	var galerie = [];
+	var cards = [];
+	var favoris_arr = [];
+	
+	/*** Récupération de la liste des favoris user ***/
+	usersRef.child(muid).once("value").then(function(snapshotUser) {
+
+		var user = snapshotUser.val();
+
+		if(undefined !== user && null !== user) {
+			var favoris = user.favoris;
+			if(undefined !== favoris && "" !== favoris) {
+				favoris_arr = favoris.split(",");
+			}
+		}
+
+		/*** Récupération de toutes les publications ***/
+		publicationsRef.once("value").then(function(snapshot) {
+
+		    /*** Constitution d'un array de cards pour les publications favorites  ***/
+		    snapshot.forEach(function(childSnapshot) {
+		      var childKey = childSnapshot.key;
+		      var childData = childSnapshot.val();
+		      var now = new Date();
+		      
+		      for (var i = 0; i < favoris_arr.length; i++) {
+		        
+		        // Si la publication se trouve parmi les favoris
+		        if (childKey.includes(favoris_arr[i] + "_") && childData.date_parution < now.getTime()) {
+		          cards.push({
+		            key: childKey,
+		            URL_achat: childData.URL_achat,
+		            URL_couv: childData.URL_couv,
+		            date_parution: childData.date_parution,
+		            numero: childData.numero,
+		            sommaire: childData.sommaire,
+		            tags: childData.tags,
+		            titre: childData.titre,
+		            titre_short: childData.titre_short
+		          });
+		        }
+		      }
+		    });
+
+		    /*** Tri par date décroissante ***/
+		    cards = cards.sort((a, b) => (a.date_parution < b.date_parution ? 1 : -1));
+
+
+		    /*** Gestion de l'index à partir duquel commencer l'affichage ***/
+			const indexPublicationParam = request.query["indexPublicationFav"];
+			var indexPublication = parseInt(indexPublicationParam, 10);
+			if( !verifyParam(indexPublication) ) {
+				badRequest(response, "Unable to find request parameter 'indexPublicationFav'.");
+				return;
+			}
+			if( isNaN(indexPublication) ) {
+				indexPublication = 0;
+			}
+
+			const nbPublications = cards.length;
+			var limiteAffichage, termine;
+
+			/*** Détermination de la position de l'user : début, fin, milieu des pages ***/
+			if(indexPublication + nbAAfficher > nbPublications)
+			{
+				limiteAffichage = nbPublications;
+				termine = true;
+			}
+			else
+			{
+				limiteAffichage = indexPublication + nbAAfficher;
+				termine = false;
+			}
+
+			//Message de fin si jamais il n'y a plus de publication à afficher
+			if(termine && (indexPublication >= nbPublications)) {
+				texteResume = "Désolé, je n'ai plus de publications en réserve pour le moment !";
+			}
+
+
+		    /*** Constitution de la galerie ***/
+		    for (var i = indexPublication; i < limiteAffichage; i++) {
+		      card = {
+		        title: cards[i].titre + " n°" + cards[i].numero,
+		        image_url: cards[i].URL_couv,
+		        subtitle: cards[i].tags,
+		        messenger_extensions: true,
+		        default_action: {
+		          type: "web_url",
+		          url: cards[i].URL_couv
+		        },
+		        buttons: [
+		          {
+		            type: "show_block",
+		            block_names: ["Sommaire"],
+		            title: "\ud83d\udcdd Sommaire",
+		            set_attributes: {
+		              publication: cards[i].key
+		            }
+		          },
+		          {
+		            type: "show_block",
+		            block_names: ["Share"],
+		            title: "\ud83d\udc8c Envoyer à un ami",
+		            set_attributes: {
+		              publication: cards[i].key
+		            }
+		          }
+		        ]
+		      };
+		      //Bouton d'achat
+		      if (
+		        cards[i].URL_achat != undefined &&
+		        cards[i].URL_achat != "" &&
+		        cards[i].URL_achat != ""
+		      ) {
+		        card.buttons.push({
+		          type: "web_url",
+		          url: cards[i].URL_achat,
+		          title: "\ud83d\uded2 Acheter"
+		        });
+		      }
+
+		      //Ajout de la nouvelle carte à l'array
+		      galerie.push(card);
+		    }
+
+
+
+		    /*** Ajout de la card de navigation avec ses boutons ***/
+		    var retourArriere = limiteAffichage - nbAAfficher * 2;
+			var quickReplies = [];
+			var boutonsNavigation = [];
+
+
+			if(retourArriere >= 0)
+			{
+				boutonsNavigation.push(
+					{
+						type:"show_block",
+						block_names:["Galerie Favoris"],
+						title:"\ud83d\udd3c Précédent",
+						set_attributes:
+						{
+							indexPublicationFav: retourArriere
+						}
+					}
+				);
+
+				quickReplies.push(
+					{
+						title: " \ud83d\udd3c Précédent",
+						block_names: ["Galerie Favoris"],
+						set_attributes:
+						{
+							indexPublicationFav: retourArriere
+						}
+					}
+				);
+			}
+
+
+
+			if(!termine)
+			{
+				boutonsNavigation.push(
+					{	
+						type:"show_block",
+						block_names:["Galerie Favoris"],
+						title:"\ud83d\udd3d Suivant",
+						set_attributes:
+						{
+							indexPublicationFav: limiteAffichage
+						}
+					}
+				);
+
+				quickReplies.push(
+					{
+						title: " \ud83d\udd3d Suivant",
+						block_names: ["Galerie Favoris"],
+						set_attributes:
+						{
+							indexPublicationFav: limiteAffichage
+						}
+					}
+				);
+			}
+			else
+			{
+				if(nbPublications > nbAAfficher)
+				{
+					boutonsNavigation.push(
+						{	
+							type:"show_block",
+							block_names:["Galerie Favoris"],
+							title:"\ud83d\udd3c Recommencer",
+							set_attributes:
+							{
+								indexPublicationFav: 0
+							}
+						}
+					);
+
+					quickReplies.push(
+						{
+							title: "Recommencer",
+							block_names: ["Galerie Favoris"],
+							set_attributes:
+							{
+								indexPublicationFav: 0
+							}
+						}
+					);
+				}
+			}
+		    
+
+		    boutonsNavigation.push({
+		      type: "show_block",
+		      block_names: ["Gestion Favoris"],
+		      title: "⭐ Gérer Favoris" //Remplacer le texte par autre chose + emojis
+		    });
+
+		    quickReplies.push(
+				{
+					title: "📋 Menu",
+					block_names: ["Menu"],
+					set_attributes:
+					{
+						indexPublicationFav: 0
+					}
+				}
+			);	
+
+		    quickReplies.push(
+			{
+				title: "⭐ Gérer Favoris",
+				block_names: ["Gestion Favoris"],
+				set_attributes:
+				{
+					indexPublicationFav: 0
+				}
+			});
+
+		    galerie.push({
+		      title: "Navigation",
+		      image_url:
+		        "https://res.cloudinary.com/newspayper/image/upload/b_rgb:474747,c_fit,e_shadow,h_970,q_90/b_rgb:00ADEF,c_lpad,h_1125,w_1125/Divers/presse_square-small.jpg",
+		      subtitle: "Utiliser les options ci-dessous",
+		      buttons: boutonsNavigation
+		    });
+
+		    /*** Constitution du JSON de la réponse ***/
+		    var reponseJSON = {};
+
+		    reponseJSON.set_attributes = 
+			{
+				termine: termine
+			};
+
+			reponseJSON.messages = [];
+
+			if(favoris_arr.length == 0) {
+				reponseJSON.messages.push(
+				{
+					text:"Tu n'as pas encore enregistré de favoris. Pourquoi ne pas le faire maintenant ?"
+				}
+				);
+			}
+			else {
+				if(indexPublication==0)
+				{
+					reponseJSON.messages.push(
+					{
+						text:"Voilà les derniers numéros de tes journaux et magazines favoris ! 📰"
+					}
+					);
+				}	
+			}
+
+			reponseJSON.messages.push(
+				{
+							attachment:{
+							type:"template",
+							payload:{
+								template_type:"generic",
+								image_aspect_ratio: "square",
+								elements: galerie
+								}
+							}
+							,
+							quick_replies: quickReplies
+				}
+
+			);
+		    
+		    console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+
+		    return response.json(reponseJSON);
+	  
+	  	});
+	});
+});
+
+/********* Affichage du texte + boutons + QR de gestion des favoris (dont appel webview) *********/
+exports.showGestionFav = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP showGestionFav : " + JSON.stringify(request.query) );
+
+	const userId = request.query["messenger user id"];
+	if(!verifyParam(userId)) {badRequest(response, "Unable to find request parameter 'messenger user id'.");return;}
+	const blockDestination = request.query["blockDestination"];
+	if(!verifyParam(blockDestination)) {badRequest(response, "Unable to find request parameter 'blockDestination'.");return;}
+	const nom = request.query["last name"];
+	if(!verifyParam(nom)) {badRequest(response, "Unable to find request parameter 'last name'.");return;}
+	const prenom = request.query["first name"];
+	if(!verifyParam(prenom)) {badRequest(response, "Unable to find request parameter 'first name'.");return;}
+	const chatbotId = request.query["chatbotId"];
+	if(!verifyParam(chatbotId)) {badRequest(response, "Unable to find request parameter 'chatbotId'.");return;}
+	const broadcastAPIToken = request.query["broadcastAPIToken"];
+	if(!verifyParam(broadcastAPIToken)) {badRequest(response, "Unable to find request parameter 'broadcastAPIToken'.");return;}
+
+	const frequenceFavoris = request.query["frequence_favoris"];
+	if(!verifyParam(frequenceFavoris)) {badRequest(response, "Unable to find request parameter 'frequence_favoris'.");return;}
+
+	
+	/*** Constitution des éléments de la réponse JSON ***/
+	var texte = `Notification des favoris : ${frequenceFavoris}`;
+
+	var quick_replies = 
+	[
+		{
+			title: "📑 Autres notifs",
+			block_names:[
+                "Menu Gestion Notifications"
+            ]
+		},
+		{
+			title: "⭐ Voir mes favoris",
+			block_names:[
+                "Init Favoris"
+            ]
+		},
+		{
+            title:"📋 Retour au menu",
+            block_names:[
+                "Menu"
+            ]
+        }
+	];
+
+	var displayUrl = `https://abolib.fr/Favoris/Select_Favoris?userId=${userId}&blockName=${blockDestination}&nom=${nom}&prenom=${prenom}&chatbotId=${chatbotId}&token=${broadcastAPIToken}`;
+
+	var reponseJSON = {
+		messages: [
+		{
+			attachment: {
+				type: "template",
+				payload: {
+					template_type: "button",
+					text: texte,
+					buttons: [
+					{
+						type:"show_block",
+						block_names:["Reglage frequence favoris"],
+						title:"🔔 Régler notifs"
+					},
+					{
+						type: "web_url",
+	                    url: displayUrl,
+	                    title: "⭐ Choisir favoris",
+	                    messenger_extensions: true,
+	                    webview_height_ratio: "tall"
+					}
+					]
+				}
+			},
+			quick_replies: quick_replies
+		}
+		]	
+	};
+
+	console.log("Réponse JSON :\n" + JSON.stringify(reponseJSON));
+	response.json(reponseJSON);
+});
+
+/********* Affichage d'un texte + bouton pour bloc Présentation chatbot *********/
+exports.showGestionFavGenerique = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP showGestionFavPresentation : " + JSON.stringify(request.query) );
+
+	const userId = request.query["messenger user id"];
+	if(!verifyParam(userId)) {badRequest(response, "Unable to find request parameter 'messenger user id'.");return;}
+	const blockDestination = request.query["blockDestination"];
+	if(!verifyParam(blockDestination)) {badRequest(response, "Unable to find request parameter 'blockDestination'.");return;}
+	const nom = request.query["last name"];
+	if(!verifyParam(nom)) {badRequest(response, "Unable to find request parameter 'last name'.");return;}
+	const prenom = request.query["first name"];
+	if(!verifyParam(prenom)) {badRequest(response, "Unable to find request parameter 'first name'.");return;}
+	const chatbotId = request.query["chatbotId"];
+	if(!verifyParam(chatbotId)) {badRequest(response, "Unable to find request parameter 'chatbotId'.");return;}
+	const broadcastAPIToken = request.query["broadcastAPIToken"];
+	if(!verifyParam(broadcastAPIToken)) {badRequest(response, "Unable to find request parameter 'broadcastAPIToken'.");return;}
+
+	const frequenceFavoris = request.query["frequence_favoris"];
+	if(!verifyParam(frequenceFavoris)) {badRequest(response, "Unable to find request parameter 'frequence_favoris'.");return;}
+
+	const texte_favoris = request.query["texte_favoris"];
+	if(!verifyParam(texte_favoris)) {badRequest(response, "Unable to find request parameter 'texte_favoris'.");return;}
+
+
+	var displayUrl = `https://abolib.fr/Favoris/Select_Favoris?userId=${userId}&blockName=${blockDestination}&nom=${nom}&prenom=${prenom}&chatbotId=${chatbotId}&token=${broadcastAPIToken}`;
+
+	var texte = texte_favoris;
+
+	var reponseJSON = {
+		messages: [
+		{
+			attachment: {
+				type: "template",
+				payload: {
+					template_type: "button",
+					text: texte,
+					buttons: [
+					{
+						type: "web_url",
+	                    url: displayUrl,
+	                    title: "⭐ Choisir favoris",
+	                    messenger_extensions: true,
+	                    webview_height_ratio: "tall"
+					}
+					]
+				}
+			}
+		}
+		]	
+	};
+
+
+	if(frequenceFavoris === "not set")
+	{
+		var set_attributes = {
+			frequence_favoris: "Dès leur sortie"
+		};
+
+		reponseJSON.set_attributes = set_attributes;
+	}
+
+	console.log("Réponse JSON :\n" + JSON.stringify(reponseJSON));
+	response.json(reponseJSON);
+});
+
+/********* Broadcast des favoris *********/
+exports.broadcastFav = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP broadcastFav : " + JSON.stringify(request.query) );
+
+	const muid = request.query["messenger user id"];
+	if(!verifyParam(muid)) {badRequest(response, "Unable to find request parameter 'messenger user id'.");return;}
+	const timezone = request.query["timezone"];
+	if(!verifyParam(timezone)) {badRequest(response, "Unable to find request parameter 'timezone'.");return;}
+
+	var favoris_sortis = [];
+	var favoris_arr = [];
+	
+	/*** Récupération de la liste des favoris user ***/
+	usersRef.child(muid).once("value").then(function(snapshotUser) {
+
+		var user = snapshotUser.val();
+
+		if(undefined !== user && null !== user) {
+			var favoris = user.favoris;
+			if(undefined !== favoris && "" !== favoris) {
+				favoris_arr = favoris.split(",");
+			}
+		}
+
+		var today = new Date();
+
+		//Modification de la date pour prendre en compte le fuseau horaire
+		today.setHours(today.getHours()-timezone)
+      	//Mise à 0 des H/min/s/ms tout en décalant l'heure pour prendre en compte le décalage lié au fait
+      	//que le Dashboard est en GMT+2
+      	today.setHours(-2,0,0,0);
+
+
+		/*** Récupération de toutes les publications ***/
+		publicationsRef.once("value").then(function(snapshot) {
+
+		    /*** Constitution d'un array de cards pour les publications favorites  ***/
+		    snapshot.forEach(function(childSnapshot) {
+		      var childKey = childSnapshot.key;
+		      var childData = childSnapshot.val();
+		      for (var i = 0; i < favoris_arr.length; i++) {
+
+		      	//Nouvelle alerte à prévoir si la date de notif est aujourd'hui + si date de parution déjà passée ou aujourd'hui
+		      	var newPublication = childData.date_notif_favoris === today.getTime() && today.getTime()>=childData.date_parution;
+
+
+		      	//console.log("key= " + childKey + " | newPub= " + newPublication);
+		      	//console.log("today= " + today.getTime() + " | date_parution= " + childData.date_parution + " | date_notif_favoris= " + childData.date_notif_favoris);
+
+		        // Si la publication se trouve parmi les favoris
+		        if (childKey.includes(favoris_arr[i] + "_") && newPublication) {
+		        	favoris_sortis.push({
+		        		titre: childData.titre,
+		        		date_parution: childData.date_parution
+		        	});
+		        	//console.log("Titre ajouté à la liste des favoris sortis aujourd'hui.")
+		        }
+
+		      }
+		    });
+
+		    console.log("favoris_sortis= " + JSON.stringify(favoris_sortis));
+
+		    /*** Tri par date décroissante ***/
+		    favoris_sortis = favoris_sortis.sort((a, b) => (a.date_parution < b.date_parution ? 1 : -1));
+
+		    var reponseJSON = {};
+
+		    var text = "";
+
+		    if(favoris_sortis.length > 0 && user !== undefined && user !== null)
+		    {
+
+		    	//Variation du message d'update
+			    var random_selector = Math.floor(Math.random() * Math.floor(3));
+
+			    if(random_selector==0)
+			    {
+			    	text = "Bonjour " + user.prenom + ",\n";
+			    	text += "J'ai du nouveau pour toi : ";
+			    }
+			    if(random_selector==1)
+			    {
+			    	text = "Bonjour " + user.prenom + ",\n";
+			    	text += "Voilà quelque chose qui devrait t'intéresser : ";
+			    }
+			    if(random_selector==2)
+			    {
+			    	text = user.prenom + " !\n";
+			    	text += "Viens vite voir ça : ";
+			    }
+
+			    //Texte commun à tous les messages
+		    	if(favoris_sortis.length == 1){
+		    		text += favoris_sortis[0].titre + " est sorti !";
+		    	}
+		    	if(favoris_sortis.length == 2){
+		    		text += favoris_sortis[0].titre + " et " + favoris_sortis[1].titre + " sont sortis !";
+		    	}
+		    	if(favoris_sortis.length == 3){
+		    		text += favoris_sortis[0].titre + ", " + favoris_sortis[1].titre + " et " + favoris_sortis[2].titre + " sont sortis !";
+		    	}
+		    	if(favoris_sortis.length > 3){
+		    		text += favoris_sortis[0].titre + ", " + favoris_sortis[1].titre + ", " + favoris_sortis[2].titre + " et d'autres sont sortis !";
+		    	}
+
+		    	text += "\nTu veux y jeter un oeil ?"
+
+			    var quickReplies = [];
+
+				quickReplies.push(
+					{
+						title: " 📰 Allons voir !",
+						block_names: ["Init Favoris"]
+					}
+				);
+
+				quickReplies.push(
+					{
+						title: " \u23f0 Plus tard",
+						block_names: ["Plus tard broadcast favoris"]
+					}
+				);
+
+				quickReplies.push(
+					{
+						title: " 🛠️ Régler notifs",
+						block_names: ["Gestion Favoris"]
+					}
+				);
+
+				quickReplies.push(
+					{
+						title: " 📰 Autres sorties",
+						block_names: ["Init Chrono"]
+					}
+				);
+
+				var message = {
+					text: text,
+					quick_replies: quickReplies
+				}
+				reponseJSON.messages = [];
+				reponseJSON.messages.push(message);
+
+		    }
+
+		    //pour ne pas avoir un message vide
+			var set_attributes = {
+				record_type: ""
+			};
+
+
+			reponseJSON.set_attributes = set_attributes;
+
+
+		    console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+
+		    return response.json(reponseJSON);
+	  
+	  	});
+	});
 });
 
 /********* Traitement des paramètres REF pour affichage publication *********/
@@ -649,54 +1261,70 @@ exports.showSommaire2 = functions.https.onRequest((request, response) => {
 			var quick_replies = 
 				[
 					{
-						"title": "\ud83d\udcf0 Autres titres"
+						title: "\ud83d\udcf0 Autres titres"
 					},
 					{
-	                    "title":"\ud83d\udc8c Partager",
-	                    "block_names":[
+	                    title:"\ud83d\udc8c Partager",
+	                    block_names:[
 	                        "Share"
 	                    ]
+	                },
+	                {
+	                	title: "📋 Menu",
+	                	block_names:[
+	                		"Menu"
+	                	]
 	                }
 				];
 
 			var reponseJSON = 
 			{
-				"messages":[
+				messages:[
 					{
-						"text": "Voici le sommaire :"
+						text: publication.titre + " n°" + publication.numero + " :"
 					},
 					{
-						"text": texteSommaire,
-						"quick_replies": quick_replies
+						text: texteSommaire,
+						quick_replies: quick_replies
 					
 					}
 				]
 			};
 
+
+			var temp = 
+			{
+				messages: [
+				{
+					text: publication.titre + " n°" + publication.numero + " :"
+				},
+				{
+					attachment: {
+						type: "template",
+						payload: {
+							template_type: "button",
+							text: texteSommaire,
+							buttons: [
+							{
+								type:"web_url",
+								url:publication.URL_achat,
+								title:"\ud83d\uded2 Acheter"
+							}
+							]
+						}
+					},
+					quick_replies: quick_replies
+				}
+				]
+			};
+
+
+			//
+
 			console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
 
-			//log de l'envoi à l'utilisateur
-			var now = new Date();
+			response.json(reponseJSON);
 
-			var logs = {};
-
-			logs["timestamp"] = now.getTime();
-			logs["idPublication"] = idPublication;
-			logs["contenu_envoye"] = "sommaire";
-
-			var refUser = admin.database().ref('users').child(messengerUserId);
-			
-			var updates = {};
-			updates["messengerUserId"] = messengerUserId;	
-			updates["/logs/" + now.getTime()] = logs;
-
-			console.log("updates : " + JSON.stringify(updates));
-
-			refUser.update(updates)
-				.then(function() {
-					console.log("envoi réponse JSON");
-					response.json(reponseJSON);
-				});
 		}
 		
 	});
@@ -805,6 +1433,58 @@ exports.logAction = functions.https.onRequest((request, response) => {
 		});*/
 });
 
+/********* Recopie d'attributs dans d'autres pour contourner bug Chatfuel *********/
+exports.recopieAttributs = functions.https.onRequest((request, response) => {
+	
+	console.log("chatbotNPP recopieAttributs : " + JSON.stringify(request.query) );
+
+	const muid	= request.query["messenger user id"];
+	if(!verifyParam(muid)) {badRequest(response, "Unable to find request parameter 'messenger user id'.");return;}
+	const firstName	= request.query["first name"];
+	if(!verifyParam(firstName)) {badRequest(response, "Unable to find request parameter 'first name'.");return;}
+	const lastName	= request.query["last name"];
+	if(!verifyParam(lastName)) {badRequest(response, "Unable to find request parameter 'last name'.");return;}
+	const lastVisitedBlockName	= request.query["last visited block name"];
+	if(!verifyParam(lastVisitedBlockName)) {badRequest(response, "Unable to find request parameter 'last visited block name'.");return;}
+
+	var reponseJSON = 
+	{
+		"set_attributes": {
+			"messenger_user_id": muid,
+			"first_name": firstName,
+			"last_name": lastName,
+			"last_visited_block_name": lastVisitedBlockName
+		}
+	};
+
+	console.log(JSON.stringify(reponseJSON));
+	response.json(reponseJSON);
+});
+
+
+exports.resetLocationAttributes = functions.https.onRequest((request, response) => {
+	
+	console.log("chatbotNPP resetLocationAttributes : " + JSON.stringify(request.query) );
+
+	const address	= request.query["address"];
+	if(!verifyParam(address)) {badRequest(response, "Unable to find request parameter 'address'.");return;}
+	const longitude	= request.query["longitude"];
+	if(!verifyParam(longitude)) {badRequest(response, "Unable to find request parameter 'longitude'.");return;}
+	const latitude	= request.query["latitude"];
+	if(!verifyParam(lastName)) {badRequest(response, "Unable to find request parameter 'latitude'.");return;}
+	
+	var reponseJSON = 
+	{
+		"set_attributes": {
+			"address": "not set",
+			"longitude": "not set",
+			"latitude": "not set"
+		}
+	};
+
+	console.log(JSON.stringify(reponseJSON));
+	response.json(reponseJSON);
+});
 
 //////////////////////////////////////////// ENDPOINTS CLOUDINARY ////////////////////////////////////////////
 
@@ -1127,6 +1807,41 @@ exports.showTest = functions.https.onRequest((request, response) => {
 	var JSONtest3 = 
 	{"messages":[{"attachment":{"type":"template","payload":{"template_type":"generic","image_aspect_ratio":"square","elements":[{"title":"Welcome!","subtitle":"Choose your preferences","buttons":[{"type":"web_url","url":"http://webviews-dev.us-east-2.elasticbeanstalk.com/testWebview/dynamic-webview?userId=CCCCCCC&blockName=AfterSubmit","title":"Webview (compact)","messenger_extensions":true,"webview_height_ratio":"compact"},{"type":"web_url","url":"http://webviews-dev.us-east-2.elasticbeanstalk.com/testWebview/dynamic-webview?userId=CCCCCCC&blockName=AfterSubmit","title":"Webview (tall)","messenger_extensions":true,"webview_height_ratio":"tall"},{"type":"web_url","url":"http://webviews-dev.us-east-2.elasticbeanstalk.com/testWebview/dynamic-webview?userId=CCCCCCC&blockName=AfterSubmit","title":"Webview (full)","messenger_extensions":true,"webview_height_ratio":"full"}]}]}}}]};
 
-	console.log(JSON.stringify(JSONtest3));
-	response.json(JSONtest3);
+	var sommaire = "🙋 Climat : rencontre avec une génération naissante Dans le sillage de la Suédoise Greta Thunberg, des milliers de jeunes s’organisent pour contraindre les gouvernements à agir contre le dérèglement climatique. A la veille de la grève scolaire mondiale du 15 mars, retour sur une mobilisation inédite. 🎵 Les maux  de Keren Ann Sur Bleue, son nouvel album en français, la chanteuse et musicienne met à nu ses tourments amoureux avec la délicatesse sonore qui la caractérise.";
+	sommaire = sommaire + sommaire;
+
+	var JSONtest4 =
+	{
+		"messages":
+		[
+		{
+			"text":"Assen !\nViens vite voir ça : Le Point est sorti !\nTu veux y jeter un oeil ?",
+			"quick_replies":
+			[
+			{
+				"title":" 📰 Allons voir !",
+				"block_names":["Init Favoris"]
+			},
+			{
+				"title":" ⏰ Plus tard",
+				"block_names":["Plus tard broadcast favoris"]
+			},
+			{
+				"title":" 🛠️ Régler notifs",
+				"block_names":["Gestion Favoris"]
+			},
+			{
+				"title":" 📰 Autres sorties",
+				"block_names":["Init Chrono"]
+			}
+			]
+		}
+		],
+		"set_attributes":{"record_type":""}
+	};
+
+
+
+	console.log(JSON.stringify(JSONtest4));
+	response.json(JSONtest4);
 });
