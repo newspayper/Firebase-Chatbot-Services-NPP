@@ -939,6 +939,129 @@ exports.broadcastFav = functions.https.onRequest((request, response) => {
 	});
 });
 
+/********* Ajout d'un ou de plusieurs favori *********/
+exports.ajoutFavoris = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP ajoutFavoris : " + JSON.stringify(request.query) );
+
+	const muid = request.query["messenger user id"];
+	if(!verifyParam(muid)) {badRequest(response, "Unable to find request parameter 'messenger user id'.");return;}
+	const idFavoris = request.query["idFavoris"];
+	if(!verifyParam(idFavoris)) {badRequest(response, "Unable to find request parameter 'idFavoris'.");return;}
+
+	if(idFavoris === "")
+		response.end();
+	
+	/*** Récupération de la liste des favoris user ***/
+	usersRef.child(muid).once("value").then(function(snapshotUser) {
+
+		var user = snapshotUser.val();
+
+		var favoris;
+		var favoris_arr = [];
+
+		if(undefined !== user && null !== user) {
+			favoris = user.favoris;
+			// console.log("Favoris : " + favoris);
+			if(undefined !== favoris && "" !== favoris) {
+				favoris_arr = favoris.split(",");
+			}
+		}
+
+		var favorisAjout_arr = idFavoris.split(",");
+
+		for(var i = favorisAjout_arr.length - 1; i >= 0; i--) {
+
+			function isFavori(element) {
+				return element === favorisAjout_arr[i];
+			}
+
+			var trouve = favoris_arr.findIndex(isFavori);
+
+			// console.log("Résultat recherche élément " + favorisAjout_arr[i] + " => en position : " + trouve);
+			if(trouve === -1)
+			{
+				favoris += "," + favorisAjout_arr[i];
+			}
+		}
+
+		// console.log(favoris);
+
+		var refUser = admin.database().ref('users').child(muid);
+
+		refUser.update({favoris: favoris})
+			.then(function() {
+				var set_attributes = {idFavoris: ""};
+				reponseJSON.set_attributes = set_attributes;
+			    console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+			    return response.json(reponseJSON);
+			});
+	});
+});
+
+/********* Suppression d'un ou de plusieurs favori *********/
+exports.suppressionFavoris = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP suppressionFavoris : " + JSON.stringify(request.query) );
+
+	const muid = request.query["messenger user id"];
+	if(!verifyParam(muid)) {badRequest(response, "Unable to find request parameter 'messenger user id'.");return;}
+	const idFavoris = request.query["idFavoris"];
+	if(!verifyParam(idFavoris)) {badRequest(response, "Unable to find request parameter 'idFavoris'.");return;}
+
+	if(idFavoris === "")
+		response.end();
+	
+	/*** Récupération de la liste des favoris user ***/
+	usersRef.child(muid).once("value").then(function(snapshotUser) {
+
+		var user = snapshotUser.val();
+
+		var favoris;
+		var favoris_arr = [];
+
+		if(undefined !== user && null !== user) {
+			favoris = user.favoris;
+			// console.log("Favoris : " + favoris);
+			if(undefined !== favoris && "" !== favoris) {
+				favoris_arr = favoris.split(",");
+			}
+		}
+
+		var favorisSuppr_arr = idFavoris.split(",");
+
+		for(var i = favorisSuppr_arr.length - 1; i >= 0; i--) {
+
+			function isFavori(element) {
+				return element === favorisSuppr_arr[i];
+			}
+
+			var trouve = favoris_arr.findIndex(isFavori);
+
+			// console.log("Résultat recherche élément " + favorisAjout_arr[i] + " => en position : " + trouve);
+			if(trouve !== -1)
+			{
+				favoris_arr.splice(trouve,1);
+			}
+		}
+
+		favoris = favoris_arr.join(",")
+
+		// console.log("Résultat = " + favoris);
+
+		var refUser = admin.database().ref('users').child(muid);
+
+		refUser.update({favoris: favoris})
+			.then(function() {
+				var set_attributes = {idFavoris: ""};
+				reponseJSON.set_attributes = set_attributes;
+			    console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+			    return response.json(reponseJSON);
+			});
+
+	});
+});
+
 /********* Traitement des paramètres REF pour affichage publication *********/
 exports.refParserPublication = functions.https.onRequest((request, response) => {
 	
