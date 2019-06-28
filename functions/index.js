@@ -37,6 +37,10 @@ cloudinary.config({
 });
 
 
+/*** Twilio demo ***/
+// const MessagingResponse = require('twilio').twiml.MessagingResponse;
+
+
 //////////////////////////////////////////// ENDPOINTS CHATBOT ////////////////////////////////////////////
 
 
@@ -783,6 +787,8 @@ exports.broadcastFav = functions.https.onRequest((request, response) => {
 	if(!verifyParam(muid)) {badRequest(response, "Unable to find request parameter 'messenger user id'.");return;}
 	const timezone = request.query["timezone"];
 	if(!verifyParam(timezone)) {badRequest(response, "Unable to find request parameter 'timezone'.");return;}
+	// const fn = request.query["first name"];
+	// const ln = request.query["last name"];
 
 	var favoris_sortis = [];
 	var favoris_arr = [];
@@ -792,9 +798,12 @@ exports.broadcastFav = functions.https.onRequest((request, response) => {
 
 		var user = snapshotUser.val();
 
+		// console.log("user = " + JSON.stringify(user));
+
 		if(undefined !== user && null !== user) {
 			var favoris = user.favoris;
 			if(undefined !== favoris && "" !== favoris) {
+				// console.log("favoris " + fn + " " + ln + " = " + favoris);
 				favoris_arr = favoris.split(",");
 			}
 		}
@@ -811,6 +820,7 @@ exports.broadcastFav = functions.https.onRequest((request, response) => {
 		/*** Récupération de toutes les publications ***/
 		publicationsRef.once("value").then(function(snapshot) {
 
+			console.log("Lecture des publications")
 		    /*** Constitution d'un array de cards pour les publications favorites  ***/
 		    snapshot.forEach(function(childSnapshot) {
 		      var childKey = childSnapshot.key;
@@ -819,24 +829,32 @@ exports.broadcastFav = functions.https.onRequest((request, response) => {
 
 		      	//Nouvelle alerte à prévoir si la date de notif est aujourd'hui + si date de parution déjà passée ou aujourd'hui
 		      	var newPublication = childData.date_notif_favoris === today.getTime() && today.getTime()>=childData.date_parution;
+		      	// !!!!!!! Ici : vérification du fait que la publication soit "nouvelle", donc potentiellement à afficher si elle est dans les favoris du user
 
-
-		      	//console.log("key= " + childKey + " | newPub= " + newPublication);
-		      	//console.log("today= " + today.getTime() + " | date_parution= " + childData.date_parution + " | date_notif_favoris= " + childData.date_notif_favoris);
+		      	// if(childKey.includes("Courrier")){
+		      	// console.log("newpublication key= " + childKey + " | newPub= " + newPublication);
+		      	// console.log("newpublication today= " + today.getTime() + " | date_parution= " + childData.date_parution + " | date_notif_favoris= " + childData.date_notif_favoris);
+		      	// }
 
 		        // Si la publication se trouve parmi les favoris
 		        if (childKey.includes(favoris_arr[i] + "_") && newPublication) {
+
+		        	// console.log("La nouvelle publication : " + childKey + " contient " + favoris_arr[i]);
 		        	favoris_sortis.push({
 		        		titre: childData.titre,
 		        		date_parution: childData.date_parution
 		        	});
 		        	//console.log("Titre ajouté à la liste des favoris sortis aujourd'hui.")
 		        }
+		        // else {
+		        // 	if(childKey.includes("LePoint")){
+		        // 	console.log("La nouvelle publication : " + childKey + " ne contient pas " + favoris_arr[i]);
+		        // }}
 
 		      }
 		    });
 
-		    console.log("favoris_sortis= " + JSON.stringify(favoris_sortis));
+		    // console.log("favoris_sortis " + fn + " " + ln + " = " + JSON.stringify(favoris_sortis));
 
 		    /*** Tri par date décroissante ***/
 		    favoris_sortis = favoris_sortis.sort((a, b) => (a.date_parution < b.date_parution ? 1 : -1));
@@ -939,7 +957,50 @@ exports.broadcastFav = functions.https.onRequest((request, response) => {
 	});
 });
 
-/********* Ajout d'un ou de plusieurs favori *********/
+/********* Sauvegarde dans un attribut le fait que l'user ait ou non réglé des favoris *********/
+exports.saveAttributeFav = functions.https.onRequest((request, response) => {
+
+	console.log("chatbotNPP saveAttributeFav : " + JSON.stringify(request.query) );
+
+	const muid = request.query["messenger user id"];
+	if(!verifyParam(muid)) {badRequest(response, "Unable to find request parameter 'messenger user id'.");return;}
+	
+	var hasFavorites = false;
+
+
+	/*** Récupération de la liste des favoris user ***/
+	usersRef.child(muid).once("value").then(function(snapshotUser) {
+
+		var user = snapshotUser.val();
+
+		if(undefined !== user && null !== user) {
+			var favoris = user.favoris;
+			if(undefined !== favoris && "" !== favoris) {
+				
+				hasFavorites = true;
+
+			}
+
+		}
+		
+
+		    /*** Constitution du JSON de la réponse ***/
+		    var reponseJSON = {};
+
+		    reponseJSON.set_attributes = 
+			{
+				has_favorites: hasFavorites
+			};
+
+		    
+		    console.log("Réponse JSON : " + JSON.stringify(reponseJSON));
+
+		    return response.json(reponseJSON);
+	  
+	});
+});
+
+/********* Ajout d'un ou de plusieurs favoris *********/
 exports.ajoutFavoris = functions.https.onRequest((request, response) => {
 
 	console.log("chatbotNPP ajoutFavoris : " + JSON.stringify(request.query) );
@@ -999,7 +1060,7 @@ exports.ajoutFavoris = functions.https.onRequest((request, response) => {
 	});
 });
 
-/********* Suppression d'un ou de plusieurs favori *********/
+/********* Suppression d'un ou de plusieurs favoris *********/
 exports.suppressionFavoris = functions.https.onRequest((request, response) => {
 
 	console.log("chatbotNPP suppressionFavoris : " + JSON.stringify(request.query) );
@@ -1585,28 +1646,74 @@ exports.recopieAttributs = functions.https.onRequest((request, response) => {
 });
 
 
-exports.resetLocationAttributes = functions.https.onRequest((request, response) => {
+exports.XMLdemoresponse = functions.https.onRequest((request, response) => {
 	
-	console.log("chatbotNPP resetLocationAttributes : " + JSON.stringify(request.query) );
+	console.log("chatbotNPP XMLdemoresponse : " + JSON.stringify(request.body) );
 
-	const address	= request.query["address"];
-	if(!verifyParam(address)) {badRequest(response, "Unable to find request parameter 'address'.");return;}
-	const longitude	= request.query["longitude"];
-	if(!verifyParam(longitude)) {badRequest(response, "Unable to find request parameter 'longitude'.");return;}
-	const latitude	= request.query["latitude"];
-	if(!verifyParam(lastName)) {badRequest(response, "Unable to find request parameter 'latitude'.");return;}
+	const userMsg	= request.body["Body"];
+	console.log("User message : " + userMsg);
+
+
+
+	var xmlString = '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n';
+
+	if(userMsg === "news" || userMsg === 'News') {
+
+		xmlString += '<Message>\n';
+
+		xmlString += '<Body>\n';
+
+		xmlString += '*Essai Ford Mondeo SW Hybrid*\n';
+		xmlString += 'Un break hybride essence à considérer\n\n';
+		xmlString += "Lancée en 2015 en carrosserie quatre portes, la Mondeo hybride s'associe au break SW à l'occasion de son restylage. De quoi réparer le principal défaut de la Mondeo Hybrid 187 ch..."
+		xmlString += '\n\nhttps://www.largus.fr/actualite-automobile/essai-ford-mondeo-sw-hybrid-un-break-hybride-essence-a-considerer-9834393.html\n';
+
+		xmlString += '</Body>\n'
+
+		xmlString += '<Media>https://www.largus.fr/images/images/essai-ford-mondeo-sw-hybride-vignale-2019-23.jpg</Media>\n';
+
+		xmlString += '</Message>';
+
+	}
+	else if(userMsg === 'demo' || userMsg === 'Demo') {
+
+		xmlString += '<Message><Body>';
+
+		xmlString += 'Démo : <br/><br/>';
+		xmlString += 'This is \n*bold**<br/>';
+		xmlString += 'Th\n\nis is _italic_';
+		xmlString += '  https://google.fr/';
+
+		xmlString += '</Body></Message>';
 	
-	var reponseJSON = 
-	{
-		"set_attributes": {
-			"address": "not set",
-			"longitude": "not set",
-			"latitude": "not set"
-		}
-	};
+	}
+	else {
+		xmlString += '<Message><Body>';
 
-	console.log(JSON.stringify(reponseJSON));
-	response.json(reponseJSON);
+		xmlString += "Désolé je ne comprends pas. Si vous souhaitez avoir les news, envoyez-moi 'news'";
+
+		xmlString += '</Body></Message>';
+	}
+
+	// const res = new MessagingResponse();
+	// const msg = res.message();
+	// msg.body('Ceci est le message');
+
+	//ou bien :
+	//res.message('Ceci est le message');
+	
+	
+	xmlString += '</Response>';
+
+        response
+          .set("Content-Type", "text/xml; charset=utf8")
+          .status(200)
+          .send(xmlString);
+	
+    console.log("Réponse XML = " + xmlString);
+
+	// response = res;
+	response.send();
 });
 
 //////////////////////////////////////////// ENDPOINTS CLOUDINARY ////////////////////////////////////////////
